@@ -1,7 +1,7 @@
 export const BRAND = {
   name: 'Sumber Sandang',
   tagline: 'Toko Baju Terlengkap',
-  logo: 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=128&h=128&fit=crop',
+  logo: '/sumber-sandang-logo.webp',
   instagram: 'sumber.sandanggg',
   instagramUrl: 'https://www.instagram.com/sumber.sandanggg',
   mapsUrl: 'https://maps.app.goo.gl/zYVh2tbauVVR1EnP8',

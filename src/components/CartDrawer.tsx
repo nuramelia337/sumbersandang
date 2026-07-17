@@ -20,11 +20,11 @@ export default function CartDrawer({ onCheckout }: Props) {
         onClick={() => setIsOpen(false)}
       />
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 dark:bg-neutral-900 ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 dark:bg-secondary-900 ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-700">
+        <div className="flex items-center justify-between border-b border-primary-100 px-5 py-4 dark:border-secondary-800">
           <div className="flex items-center gap-2">
             <ShoppingBag size={20} className="text-primary-600" />
             <h2 className="font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">
@@ -50,7 +50,7 @@ export default function CartDrawer({ onCheckout }: Props) {
               {items.map((item) => (
                 <div
                   key={getCartItemKey(item)}
-                  className="flex gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-700"
+                  className="flex gap-3 rounded-xl border border-primary-100 bg-primary-50/40 p-3 dark:border-secondary-800 dark:bg-secondary-950/40"
                 >
                   <img
                     src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
@@ -99,7 +99,7 @@ export default function CartDrawer({ onCheckout }: Props) {
         </div>
 
         {items.length > 0 && (
-          <div className="border-t border-neutral-200 px-5 py-4 dark:border-neutral-700">
+          <div className="border-t border-primary-100 px-5 py-4 dark:border-secondary-800">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm text-neutral-600 dark:text-neutral-400">Subtotal</span>
               <span className="text-lg font-bold text-neutral-900 dark:text-neutral-50">

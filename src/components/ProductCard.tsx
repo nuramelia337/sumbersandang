@@ -33,7 +33,7 @@ export default function ProductCard({ product, onClick }: Props) {
           className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute left-3 top-3 flex gap-2">
-          {product.is_featured && <span className="badge bg-accent-500 text-white">Featured</span>}
+          {product.is_featured && <span className="badge bg-accent-400 text-secondary-950">Featured</span>}
           <span className={`badge ${conditionColors[product.condition] || conditionColors.Good}`}>{product.condition}</span>
         </div>
         <div className="absolute right-3 top-3">
@@ -54,13 +54,13 @@ export default function ProductCard({ product, onClick }: Props) {
         <button
           onClick={(e) => { e.stopPropagation(); addItem(product); }}
           disabled={!available}
-          className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-600 opacity-0 shadow-lg transition-all duration-300 hover:bg-primary-600 hover:text-white group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-600 opacity-0 shadow-sm transition-all duration-300 hover:bg-primary-600 hover:text-white group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ShoppingBag size={18} />
         </button>
       </div>
       <div className="p-4">
-        <p className="text-xs uppercase tracking-wider text-primary-500">{product.brand || 'Thrift'}</p>
+        <p className="text-xs uppercase tracking-wider text-primary-600">{product.brand || 'Thrift'}</p>
         <h3 className="mt-1 truncate font-serif text-base font-semibold text-neutral-900 dark:text-neutral-100">{product.name}</h3>
         <div className="mt-1 flex items-center gap-2 text-xs text-neutral-500">
           {product.size && <span>Size {product.size}</span>}

@@ -7,7 +7,7 @@ interface Props {
 
 export default function Footer({ onNavigate }: Props) {
   return (
-    <footer className="mt-20 border-t border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
+    <footer className="mt-20 border-t border-primary-100 bg-primary-50 dark:border-secondary-800 dark:bg-secondary-950">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-4">
           <div className="md:col-span-1">
@@ -15,13 +15,13 @@ export default function Footer({ onNavigate }: Props) {
               <img
                 src={BRAND.logo}
                 alt="Sumber Sandang"
-                className="h-12 w-12 rounded-full object-cover ring-2 ring-primary-200"
+                className="h-14 w-14 rounded-xl bg-white object-contain p-1 ring-2 ring-accent-200"
               />
               <div>
-                <p className="font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">
+                <p className="font-serif text-lg font-bold text-secondary-950 dark:text-primary-50">
                   Sumber Sandang
                 </p>
-                <p className="text-xs text-primary-600">Premium Thrift Fashion</p>
+                <p className="text-xs text-primary-600">Good stuff, second chance</p>
               </div>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">

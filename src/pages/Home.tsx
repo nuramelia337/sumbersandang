@@ -52,7 +52,7 @@ export default function Home({ onNavigate }: Props) {
             alt="Hero"
             className="h-full w-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-neutral-900/70 via-neutral-900/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-secondary-950/85 via-secondary-900/60 to-primary-950/10" />
         </div>
         <div className="relative mx-auto flex max-w-7xl flex-col justify-center px-4 py-24 sm:px-6 lg:min-h-[80vh] lg:px-8">
           <div className="max-w-2xl">
@@ -61,7 +61,7 @@ export default function Home({ onNavigate }: Props) {
             </span>
             <h1 className="mt-6 font-serif text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
               {promo.is_active ? promo.title : 'Good Stuff,'}<br />
-              <span className="text-secondary-300">{promo.is_active ? 'Ready to Resell' : 'Second Chance,'}</span><br />
+              <span className="text-accent-200">{promo.is_active ? 'Ready to Resell' : 'Second Chance,'}</span><br />
               {promo.is_active ? 'from Sumber Sandang.' : 'Better You.'}
             </h1>
             <p className="mt-6 max-w-lg text-lg text-white/80">
@@ -70,7 +70,7 @@ export default function Home({ onNavigate }: Props) {
             <div className="mt-8 flex flex-wrap gap-4">
               <button
                 onClick={() => onNavigate(promo.cta_page || 'shop')}
-                className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary-700 hover:shadow-xl active:scale-95"
+                className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-8 py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-95"
               >
                 {promo.cta_label || 'Belanja Sekarang'} <ArrowRight size={18} />
               </button>
@@ -86,7 +86,7 @@ export default function Home({ onNavigate }: Props) {
       </section>
 
       {/* Trust badges */}
-      <section className="border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <section className="border-b border-primary-100 bg-white dark:border-secondary-800 dark:bg-secondary-900">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
           {[
             { icon: Recycle, title: 'Sustainable Fashion', desc: 'Preloved premium items' },
@@ -95,7 +95,7 @@ export default function Home({ onNavigate }: Props) {
             { icon: Heart, title: 'Harga Terjangkau', desc: 'Premium tanpa mahal' },
           ].map((b, i) => (
             <div key={i} className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-neutral-800 dark:text-primary-400">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-secondary-800 dark:text-primary-300">
                 <b.icon size={24} />
               </div>
               <div>
@@ -118,7 +118,7 @@ export default function Home({ onNavigate }: Props) {
             <button
               key={cat.id}
               onClick={() => onNavigate('shop', { category: cat.slug })}
-              className="group relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-neutral-800 dark:to-neutral-900"
+              className="group relative aspect-square overflow-hidden rounded-2xl border border-primary-100 bg-gradient-to-br from-white via-primary-50 to-accent-100 dark:border-secondary-800 dark:from-secondary-900 dark:via-secondary-950 dark:to-primary-950"
             >
               <div className="flex h-full flex-col items-center justify-center p-4">
                 <p className="font-serif text-lg font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-primary-600">
@@ -136,8 +136,8 @@ export default function Home({ onNavigate }: Props) {
         <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-8 flex items-end justify-between">
             <div>
-              <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Pilihan Editor</h2>
-              <p className="mt-2 text-neutral-500">Item premium pilihan tim kami</p>
+              <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Koleksi Pilihan</h2>
+              <p className="mt-2 text-neutral-500">Temuan terbaik yang siap jadi favorit baru</p>
             </div>
             <button
               onClick={() => onNavigate('shop')}
@@ -185,7 +185,7 @@ export default function Home({ onNavigate }: Props) {
 
       {/* Business packages */}
       {packages.length > 0 && (
-        <section className="bg-white py-16 dark:bg-neutral-900">
+        <section className="bg-white py-16 dark:bg-secondary-900">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="mb-8 flex items-end justify-between">
               <div>
@@ -210,7 +210,7 @@ export default function Home({ onNavigate }: Props) {
           <div className="grid gap-4 md:grid-cols-3">
             {testimonials.slice(0, 3).map((t) => (
               <div key={t.id} className="card p-5">
-                <div className="mb-3 text-secondary-500">{'★'.repeat(t.rating)}</div>
+                <div className="mb-3 text-accent-500">{'★'.repeat(t.rating)}</div>
                 <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">"{t.message}"</p>
                 <div className="mt-4">
                   <p className="font-semibold text-neutral-900 dark:text-neutral-100">{t.customer_name}</p>
@@ -224,7 +224,7 @@ export default function Home({ onNavigate }: Props) {
 
       {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-600 to-accent-600 px-8 py-16 text-center">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-700 via-primary-600 to-secondary-800 px-8 py-16 text-center">
           <div className="absolute inset-0 opacity-20">
             <img src="https://images.pexels.com/photos/2065200/pexels-photo-2065200.jpeg" alt="" className="h-full w-full object-cover" />
           </div>
@@ -237,7 +237,7 @@ export default function Home({ onNavigate }: Props) {
             </p>
             <button
               onClick={() => onNavigate('shop')}
-              className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-primary-600 shadow-lg transition-all hover:shadow-xl active:scale-95"
+              className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-primary-700 shadow-sm transition-all hover:bg-accent-50 active:scale-95"
             >
               Jelajahi Koleksi <ArrowRight size={18} />
             </button>

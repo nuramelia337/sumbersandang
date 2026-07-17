@@ -4,16 +4,18 @@
 
 @layer base {
   html { scroll-behavior: smooth; }
-  body { @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-50; font-family: 'Inter', system-ui, sans-serif; }
+  body { @apply bg-primary-50 text-secondary-950 antialiased dark:bg-secondary-950 dark:text-primary-50; font-family: 'Inter', system-ui, sans-serif; }
   h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; }
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
 }
 
 @layer components {
-  .card { @apply rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900; }
+  .card { @apply rounded-2xl border border-primary-100 bg-white shadow-sm dark:border-secondary-800 dark:bg-secondary-900; }
   .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-full bg-primary-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-full border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold text-neutral-700 transition-all hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200; }
-  .btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-neutral-600 transition-all hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800; }
-  .input-field { @apply w-full rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-full border border-primary-200 bg-white px-6 py-3 text-sm font-semibold text-secondary-800 transition-all hover:bg-primary-50 dark:border-secondary-700 dark:bg-secondary-900 dark:text-primary-50 dark:hover:bg-secondary-800; }
+  .btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-secondary-700 transition-all hover:bg-primary-100 dark:text-primary-100 dark:hover:bg-secondary-800; }
+  .input-field { @apply w-full rounded-xl border border-primary-200 bg-white px-4 py-2.5 text-sm text-secondary-950 outline-none transition-all placeholder:text-secondary-700 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 dark:border-secondary-700 dark:bg-secondary-900 dark:text-primary-50 dark:placeholder:text-primary-200; }
   .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium; }
-  .skeleton { @apply animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800; }
+  .skeleton { @apply animate-pulse rounded-xl bg-primary-100 dark:bg-secondary-800; }
 }

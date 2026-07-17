@@ -61,18 +61,18 @@ export default function AdminLayout({ onLogout }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+    <div className="min-h-screen bg-primary-50 dark:bg-secondary-950">
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-50 h-full w-64 transform border-r border-neutral-200 bg-white transition-transform dark:border-neutral-800 dark:bg-neutral-900 ${
+        className={`fixed left-0 top-0 z-50 h-full w-64 transform border-r border-primary-100 bg-white transition-transform dark:border-secondary-800 dark:bg-secondary-900 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
-        <div className="flex h-16 items-center justify-between border-b border-neutral-200 px-4 dark:border-neutral-800">
+        <div className="flex h-16 items-center justify-between border-b border-primary-100 px-4 dark:border-secondary-800">
           <div className="flex items-center gap-3">
-            <img src={BRAND.logo} alt="Logo" className="h-9 w-9 rounded-full object-cover ring-2 ring-primary-200" />
+            <img src={BRAND.logo} alt="Logo" className="h-10 w-10 rounded-xl bg-white object-contain p-1 ring-2 ring-accent-200" />
             <div>
-              <p className="font-serif text-sm font-bold text-neutral-900 dark:text-neutral-50">Sumber Sandang</p>
+              <p className="font-serif text-sm font-bold text-secondary-950 dark:text-primary-50">Sumber Sandang</p>
               <p className="text-[10px] text-primary-600">Admin Panel</p>
             </div>
           </div>
@@ -98,7 +98,7 @@ export default function AdminLayout({ onLogout }: Props) {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="absolute bottom-0 left-0 right-0 border-t border-primary-100 p-4 dark:border-secondary-800">
           <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-error-600 hover:bg-error-50 dark:hover:bg-error-900/30">
             <LogOut size={18} />
             Keluar
@@ -113,7 +113,7 @@ export default function AdminLayout({ onLogout }: Props) {
 
       {/* Main content */}
       <div className="md:ml-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/90 px-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90 sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-primary-100 bg-white/90 px-4 backdrop-blur dark:border-secondary-800 dark:bg-secondary-900/90 sm:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="md:hidden">
               <Menu size={20} />

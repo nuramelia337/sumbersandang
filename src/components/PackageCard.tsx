@@ -18,7 +18,7 @@ export default function PackageCard({ pkg }: Props) {
       <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
         <img src={packageImageUrl(pkg)} alt={pkg.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         <div className="absolute left-3 top-3 flex gap-2">
-          {pkg.is_featured && <span className="badge bg-accent-500 text-white">Featured</span>}
+          {pkg.is_featured && <span className="badge bg-accent-400 text-secondary-950">Featured</span>}
           <span className={`badge ${itemStatusColor(pkg.availability_status)}`}>{AVAILABILITY_LABELS[pkg.availability_status]}</span>
         </div>
         {!available && (
@@ -30,7 +30,7 @@ export default function PackageCard({ pkg }: Props) {
         )}
       </div>
       <div className="p-4">
-        <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wider text-primary-500">
+        <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wider text-primary-600">
           <Boxes size={14} /> Paket Usaha
         </div>
         <h3 className="font-serif text-base font-semibold text-neutral-900 dark:text-neutral-100">{pkg.name}</h3>

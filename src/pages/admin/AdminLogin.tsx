@@ -45,10 +45,10 @@ export default function AdminLogin({ onLogin }: Props) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-50 to-accent-50 px-4 dark:from-neutral-900 dark:to-neutral-950">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-50 to-accent-50 px-4 dark:from-secondary-900 dark:to-secondary-950">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <img src={BRAND.logo} alt="Sumber Sandang" className="mx-auto h-20 w-20 rounded-full object-cover ring-4 ring-primary-200" />
+          <img src={BRAND.logo} alt="Sumber Sandang" className="mx-auto h-24 w-24 rounded-2xl bg-white object-contain p-2 ring-4 ring-accent-200" />
           <h1 className="mt-4 font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Admin Panel</h1>
           <p className="mt-1 text-sm text-neutral-500">Sumber Sandang Management System</p>
         </div>

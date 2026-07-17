@@ -155,7 +155,7 @@ function App() {
     <ThemeProvider>
       <AlertProvider>
         <CartProvider>
-          <div className="flex min-h-screen flex-col bg-[#fdfbf8] dark:bg-neutral-950">
+          <div className="flex min-h-screen flex-col bg-primary-50 dark:bg-secondary-950">
             <Navbar onNavigate={navigate} onSearch={handleSearch} currentPage={page} />
             <main className="flex-1">
               {page === 'home' && <Home onNavigate={navigate} />}
