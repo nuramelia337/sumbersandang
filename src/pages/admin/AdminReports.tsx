@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate } from '../../lib/constants';
 import { Download, TrendingUp, DollarSign, Package, Users } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function AdminReports() {
   const [reportType, setReportType] = useState<'sales' | 'profit' | 'inventory' | 'customer'>('sales');
@@ -29,15 +30,16 @@ export default function AdminReports() {
       const { data: orders } = await supabase.from('orders').select('*').gte('created_at', startISO);
       const { data: items } = await supabase.from('order_items').select('*').gte('created_at', startISO);
 
-      const validOrders = orders || [];
-      const validItems = items || [];
-      const revenue = validOrders.reduce((s, o) => s + o.total_amount, 0);
-      const cogs = validItems.reduce((s, i) => s + i.purchase_price * i.quantity, 0);
+      const validOrders = (orders || []).filter((o) => !['cancelled', 'returned', 'refunded'].includes(o.order_status));
+      const validOrderIds = new Set(validOrders.map((o) => o.id));
+      const validItems = (items || []).filter((item) => validOrderIds.has(item.order_id));
+      const revenue = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const cogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
       const profit = revenue - cogs;
 
-      const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + o.total_amount, 0);
-      const saldoRevenue = validOrders.filter((o) => o.payment_method === 'saldo').reduce((s, o) => s + o.total_amount, 0);
-      const transferRevenue = validOrders.filter((o) => o.payment_method === 'transfer').reduce((s, o) => s + o.total_amount, 0);
+      const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const saldoRevenue = validOrders.filter((o) => o.payment_method === 'saldo').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const transferRevenue = validOrders.filter((o) => o.payment_method === 'transfer').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       setSummary({ revenue, cogs, profit, orders: validOrders.length, items: validItems.length, cashRevenue, saldoRevenue, transferRevenue });
       setData(validOrders.map((o) => ({
         date: o.created_at,
@@ -78,18 +80,27 @@ export default function AdminReports() {
     setLoading(false);
   };
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     if (data.length === 0) return;
-    const headers = ['Tanggal', 'Kode', 'Nama/Customer', 'Total', 'Status', 'Info'];
-    const rows = data.map((d) => [formatDate(d.date), d.order, d.customer, d.total, d.status, d.payment]);
-    const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sumber-sandang-${reportType}-${period}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = data.map((d) => ({
+      Tanggal: formatDate(d.date),
+      Kode: d.order,
+      Nama: d.customer,
+      Total: d.total,
+      Status: d.status,
+      Info: d.payment,
+    }));
+    const summaryRows = [
+      { Metrik: 'Pendapatan', Nilai: summary.revenue },
+      { Metrik: 'COGS/HPP', Nilai: summary.cogs },
+      { Metrik: 'Laba', Nilai: summary.profit },
+      { Metrik: 'Total Order/Produk', Nilai: summary.orders },
+      { Metrik: 'Total Item', Nilai: summary.items },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Ringkasan');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Data');
+    XLSX.writeFile(wb, `sumber-sandang-${reportType}-${period}.xlsx`);
   };
 
   const cards = [
@@ -106,8 +117,8 @@ export default function AdminReports() {
           <h1 className="font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Laporan</h1>
           <p className="text-sm text-neutral-500">Analisis performa bisnis</p>
         </div>
-        <button onClick={exportCSV} className="btn-primary">
-          <Download size={18} /> Export CSV
+        <button onClick={exportExcel} className="btn-primary">
+          <Download size={18} /> Export Excel
         </button>
       </div>
 

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { formatIDR, genPONumber } from '../../lib/constants';
 import { Plus, X, ArrowDown, Package } from 'lucide-react';
 import type { Product, InventoryMovement, PurchaseOrder } from '../../lib/types';
+import CurrencyInput from '../../components/CurrencyInput';
 
 export default function AdminInventory() {
   const [tab, setTab] = useState<'movements' | 'po'>('movements');
@@ -47,7 +48,12 @@ export default function AdminInventory() {
     else if (adjustForm.type === 'adjustment') after = qty;
     else if (adjustForm.type === 'damaged' || adjustForm.type === 'lost') after = Math.max(0, before - qty);
 
-    await supabase.from('products').update({ stock: after, updated_at: new Date().toISOString() }).eq('id', product.id);
+    await supabase.from('products').update({
+      stock: after,
+      availability_status: after > 0 ? 'ready' : 'sold',
+      status: after > 0 ? 'active' : 'sold_out',
+      updated_at: new Date().toISOString(),
+    }).eq('id', product.id);
     await supabase.from('inventory_movements').insert({
       product_id: product.id,
       type: adjustForm.type,
@@ -120,7 +126,7 @@ export default function AdminInventory() {
       if (existing) {
         const before = existing.stock;
         const after = before + item.quantity;
-        await supabase.from('products').update({ stock: after, updated_at: new Date().toISOString() }).eq('id', existing.id);
+        await supabase.from('products').update({ stock: after, availability_status: 'ready', status: 'active', updated_at: new Date().toISOString() }).eq('id', existing.id);
         await supabase.from('inventory_movements').insert({
           product_id: existing.id,
           type: 'in',
@@ -332,9 +338,9 @@ export default function AdminInventory() {
                     <input required type="number" placeholder="Qty" value={item.quantity} onChange={(e) => {
                       const items = [...poForm.items]; items[i].quantity = Number(e.target.value); setPoForm({ ...poForm, items });
                     }} className="input-field col-span-2" />
-                    <input required type="number" placeholder="Cost" value={item.unit_cost} onChange={(e) => {
-                      const items = [...poForm.items]; items[i].unit_cost = Number(e.target.value); setPoForm({ ...poForm, items });
-                    }} className="input-field col-span-2" />
+                    <CurrencyInput value={item.unit_cost} onValueChange={(value) => {
+                      const items = [...poForm.items]; items[i].unit_cost = value; setPoForm({ ...poForm, items });
+                    }} className="col-span-2" />
                     <button type="button" onClick={() => setPoForm({ ...poForm, items: poForm.items.filter((_, idx) => idx !== i) })} className="col-span-1 rounded-lg bg-error-50 text-error-600 hover:bg-error-100">
                       <X size={16} className="mx-auto" />
                     </button>

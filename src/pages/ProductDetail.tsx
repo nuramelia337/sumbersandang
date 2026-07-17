@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { formatIDR, waMessage } from '../lib/constants';
 import { useCart } from '../lib/cart';
 import type { Product, Category } from '../lib/types';
+import { AVAILABILITY_LABELS, itemStatusColor, productAvailabilityFromStock, productIsAvailable, storageImageUrl } from '../lib/business';
 
 interface Props {
   productId: string;
@@ -34,14 +35,14 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
   }, [productId]);
 
   const handleAddToCart = () => {
-    if (product) {
+    if (product && productIsAvailable(product)) {
       addItem(product, qty);
       setIsOpen(true);
     }
   };
 
   const handleBuyNow = () => {
-    if (product) {
+    if (product && productIsAvailable(product)) {
       addItem(product, qty);
       onNavigate('checkout');
     }
@@ -77,9 +78,13 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
     );
   }
 
+  const availability = productAvailabilityFromStock(product);
+  const available = productIsAvailable(product);
   const images = product.images?.length > 0
-    ? product.images
-    : ['https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg'];
+    ? product.images.map(storageImageUrl)
+    : product.image_path
+      ? [storageImageUrl(product.image_path)]
+      : ['https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg'];
 
   const trustItems = [
     { icon: Truck, label: 'Pengiriman Cepat' },
@@ -109,11 +114,7 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
               <span className="absolute left-4 top-4 badge bg-accent-500 text-white">Featured</span>
             )}
             <div className="absolute right-4 top-4">
-              {product.stock > 0 ? (
-                <span className="badge bg-success-500 text-white">Ready</span>
-              ) : (
-                <span className="badge bg-neutral-900 text-white">Sold</span>
-              )}
+              <span className={`badge ${itemStatusColor(availability)}`}>{AVAILABILITY_LABELS[availability]}</span>
             </div>
           </div>
           {images.length > 1 && (
@@ -173,8 +174,8 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
           )}
 
           <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className={`font-medium ${product.stock > 0 ? 'text-success-600' : 'text-error-600'}`}>
-              {product.stock > 0 ? `Stok: ${product.stock} pcs` : 'Sold Out'}
+            <span className={`font-medium ${available ? 'text-success-600' : 'text-error-600'}`}>
+              {available ? `Stok: ${product.stock} pcs` : AVAILABILITY_LABELS[availability]}
             </span>
             <span className="text-neutral-400">|</span>
             <span className="text-neutral-500">Kode: {product.product_code}</span>
@@ -192,7 +193,7 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
               </button>
               <span className="w-8 text-center text-sm font-medium">{qty}</span>
               <button
-                onClick={() => setQty(Math.min(product.stock, qty + 1))}
+                onClick={() => setQty(Math.min(Math.max(1, product.stock), qty + 1))}
                 className="rounded-full p-1 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <ArrowLeft size={14} className="rotate-[-90deg]" />
@@ -204,14 +205,14 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               onClick={handleAddToCart}
-              disabled={product.stock <= 0}
+              disabled={!available}
               className="btn-secondary flex-1 disabled:opacity-50"
             >
               <ShoppingBag size={18} /> Tambah Keranjang
             </button>
             <button
               onClick={handleBuyNow}
-              disabled={product.stock <= 0}
+              disabled={!available}
               className="btn-primary flex-1 disabled:opacity-50"
             >
               Beli Sekarang

@@ -118,10 +118,13 @@ export async function removeBackground(file: File, tolerance = 38, feather = 2):
 
 export function getProductImageUrl(product: { image_path?: string | null; images?: string[] }): string {
   if (product.image_path) {
+    if (/^https?:\/\//.test(product.image_path)) return product.image_path;
     return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`;
   }
   if (product.images && product.images.length > 0) {
-    return product.images[0];
+    const first = product.images[0];
+    if (/^https?:\/\//.test(first)) return first;
+    return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/products/${first}`;
   }
   return 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=600';
 }

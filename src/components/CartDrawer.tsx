@@ -1,6 +1,8 @@
 import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
-import { useCart } from '../lib/cart';
+import { getCartItemCode, getCartItemKey, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { formatIDR } from '../lib/constants';
+import { packageImageUrl } from '../lib/business';
+import { getProductImageUrl } from '../lib/imageUtils';
 
 interface Props {
   onCheckout: () => void;
@@ -47,40 +49,43 @@ export default function CartDrawer({ onCheckout }: Props) {
             <div className="space-y-4">
               {items.map((item) => (
                 <div
-                  key={item.product.id}
+                  key={getCartItemKey(item)}
                   className="flex gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-700"
                 >
                   <img
-                    src={item.product.images?.[0] || 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg'}
-                    alt={item.product.name}
+                    src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
+                    alt={getCartItemName(item)}
                     className="h-20 w-20 rounded-lg object-cover"
                   />
                   <div className="flex-1">
                     <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                      {item.product.name}
+                      {getCartItemName(item)}
                     </h3>
-                    <p className="text-xs text-neutral-500">{item.product.brand || 'Thrift'}</p>
+                    <p className="text-xs text-neutral-500">
+                      {item.kind === 'product' ? item.product.brand || 'Thrift' : 'Paket Usaha'}
+                    </p>
+                    <p className="font-mono text-xs text-primary-500">{getCartItemCode(item)}</p>
                     <p className="mt-1 text-sm font-bold text-primary-600">
-                      {formatIDR(item.product.selling_price)}
+                      {formatIDR(getCartItemPrice(item))}
                     </p>
                     <div className="mt-2 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => updateQty(item.product.id, item.quantity - 1)}
+                          onClick={() => updateQty(getCartItemKey(item), item.quantity - 1)}
                           className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
                         >
                           <Minus size={14} />
                         </button>
                         <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
                         <button
-                          onClick={() => updateQty(item.product.id, item.quantity + 1)}
+                          onClick={() => updateQty(getCartItemKey(item), item.quantity + 1)}
                           className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
                         >
                           <Plus size={14} />
                         </button>
                       </div>
                       <button
-                        onClick={() => removeItem(item.product.id)}
+                        onClick={() => removeItem(getCartItemKey(item))}
                         className="text-error-500 hover:text-error-700"
                       >
                         <Trash2 size={16} />

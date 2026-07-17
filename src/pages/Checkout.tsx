@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { ArrowLeft, CheckCircle, MessageCircle, AlertCircle, Instagram, Calendar, Clock } from 'lucide-react';
-import { useCart } from '../lib/cart';
+import { getCartItemCode, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { supabase } from '../lib/supabase';
 import { formatIDR, genOrderNumber, genInvoiceNumber, waMessage } from '../lib/constants';
+import {
+  computePackageCogs,
+  packageImageUrl,
+  reserveOrderItems,
+} from '../lib/business';
+import { getProductImageUrl } from '../lib/imageUtils';
+import { useAlert } from '../components/AlertProvider';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -14,6 +21,11 @@ export default function Checkout({ onNavigate }: Props) {
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
+  const [successTotal, setSuccessTotal] = useState(0);
+  const [successPayment, setSuccessPayment] = useState('');
+  const [successShipping, setSuccessShipping] = useState('');
+  const [successPickupDate, setSuccessPickupDate] = useState('');
+  const [successPickupTime, setSuccessPickupTime] = useState('');
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -30,6 +42,7 @@ export default function Checkout({ onNavigate }: Props) {
   });
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState('');
+  const { showAlert } = useAlert();
 
   const shippingCost = form.shipping === 'delivery' ? 20000 : 0;
   const total = subtotal - discount + shippingCost;
@@ -66,7 +79,11 @@ export default function Checkout({ onNavigate }: Props) {
     e.preventDefault();
     if (items.length === 0) return;
     if (form.shipping === 'pickup' && (!form.pickupDate || !form.pickupTime)) {
-      alert('Mohon pilih tanggal dan jam pengambilan');
+      showAlert({
+        title: 'Tanggal pengambilan belum lengkap',
+        message: 'Mohon pilih tanggal dan jam pengambilan.',
+        variant: 'warning',
+      });
       return;
     }
     setLoading(true);
@@ -119,36 +136,47 @@ export default function Checkout({ onNavigate }: Props) {
 
     if (error || !order) {
       setLoading(false);
-      alert('Gagal membuat pesanan: ' + (error?.message || 'unknown'));
+      showAlert({
+        title: 'Gagal membuat pesanan',
+        message: error?.message || 'Unknown error',
+        variant: 'error',
+      });
       return;
     }
 
-    const orderItems = items.map((item) => ({
-      order_id: order.id,
-      product_id: item.product.id,
-      product_code: item.product.product_code,
-      product_name: item.product.name,
-      quantity: item.quantity,
-      unit_price: item.product.selling_price,
-      purchase_price: item.product.purchase_price,
-      subtotal: item.product.selling_price * item.quantity,
-    }));
-    await supabase.from('order_items').insert(orderItems);
-
-    for (const item of items) {
-      const newStock = Math.max(0, item.product.stock - item.quantity);
-      await supabase.from('products').update({ stock: newStock, updated_at: new Date().toISOString() }).eq('id', item.product.id);
-      await supabase.from('inventory_movements').insert({
+    const orderItems = items.map((item) => {
+      const unitPrice = getCartItemPrice(item);
+      if (item.kind === 'package') {
+        return {
+          order_id: order.id,
+          item_type: 'package',
+          product_id: null,
+          package_id: item.package.id,
+          product_code: item.package.package_code,
+          product_name: item.package.name,
+          quantity: item.quantity,
+          unit_price: unitPrice,
+          purchase_price: computePackageCogs(item.package),
+          subtotal: unitPrice * item.quantity,
+          package_items_snapshot: item.package.business_package_items || [],
+        };
+      }
+      return {
+        order_id: order.id,
+        item_type: 'product',
         product_id: item.product.id,
-        type: 'out',
+        package_id: null,
+        product_code: item.product.product_code,
+        product_name: item.product.name,
         quantity: item.quantity,
-        quantity_before: item.product.stock,
-        quantity_after: newStock,
-        reference_type: 'order',
-        reference_id: order.id,
-        notes: `Order ${orderNumber}`,
-      });
-    }
+        unit_price: unitPrice,
+        purchase_price: item.product.purchase_price,
+        subtotal: unitPrice * item.quantity,
+        package_items_snapshot: [],
+      };
+    });
+    await supabase.from('order_items').insert(orderItems);
+    await reserveOrderItems(order.id);
 
     if (customerId) {
       await supabase.rpc('increment_customer_stats', {
@@ -188,13 +216,19 @@ export default function Checkout({ onNavigate }: Props) {
 
     setOrderId(orderNumber);
     setInvoiceNo(invoiceNumber);
+    setSuccessTotal(total);
+    setSuccessPayment(form.payment);
+    setSuccessShipping(form.shipping);
+    setSuccessPickupDate(form.pickupDate);
+    setSuccessPickupTime(form.pickupTime);
     setStep('success');
     clearCart();
     setLoading(false);
   };
 
   if (step === 'success') {
-    const waMsg = `Halo Sumber Sandang! Saya baru saja membuat pesanan:\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\nNama: ${form.name}\nIG: ${form.instagram || '-'}\nTotal: ${formatIDR(total)}\nMetode: ${form.payment === 'transfer' ? 'Transfer Bank' : 'Cash'}\n${form.shipping === 'pickup' ? `Pengambilan: ${form.pickupDate} ${form.pickupTime}` : 'Dikirim'}\n\nMohon konfirmasi pembayaran. Terima kasih!`;
+    const paymentText = successPayment === 'transfer' ? 'Transfer Bank' : successPayment === 'saldo' ? 'Saldo' : 'Cash';
+    const waMsg = `Halo Sumber Sandang! Saya baru saja membuat pesanan:\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\nNama: ${form.name}\nIG: ${form.instagram || '-'}\nTotal: ${formatIDR(successTotal)}\nMetode: ${paymentText}\n${successShipping === 'pickup' ? `Pengambilan: ${successPickupDate} ${successPickupTime}` : 'Dikirim'}\n\nMohon konfirmasi pembayaran. Terima kasih!`;
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center justify-center px-4 py-16 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success-100 text-success-600">
@@ -217,17 +251,17 @@ export default function Checkout({ onNavigate }: Props) {
           </div>
           <div className="flex justify-between border-b border-neutral-200 py-3 dark:border-neutral-700">
             <span className="text-sm text-neutral-500">Metode Pembayaran</span>
-            <span className="text-sm font-semibold">{form.payment === 'transfer' ? 'Transfer Bank' : 'Cash'}</span>
+            <span className="text-sm font-semibold">{paymentText}</span>
           </div>
-          {form.shipping === 'pickup' && (
+          {successShipping === 'pickup' && (
             <div className="flex justify-between border-b border-neutral-200 py-3 dark:border-neutral-700">
               <span className="text-sm text-neutral-500">Pengambilan</span>
-              <span className="text-sm font-semibold">{form.pickupDate} {form.pickupTime}</span>
+              <span className="text-sm font-semibold">{successPickupDate} {successPickupTime}</span>
             </div>
           )}
           <div className="flex justify-between pt-3">
             <span className="text-sm text-neutral-500">Total</span>
-            <span className="text-lg font-bold text-primary-600">{formatIDR(total)}</span>
+            <span className="text-lg font-bold text-primary-600">{formatIDR(successTotal)}</span>
           </div>
         </div>
         <a
@@ -461,18 +495,18 @@ export default function Checkout({ onNavigate }: Props) {
             </h2>
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {items.map((item) => (
-                <div key={item.product.id} className="flex gap-3">
+                <div key={`${item.kind}:${item.kind === 'product' ? item.product.id : item.package.id}`} className="flex gap-3">
                   <img
-                    src={item.product.images?.[0] || 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg'}
-                    alt={item.product.name}
+                    src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
+                    alt={getCartItemName(item)}
                     className="h-16 w-16 rounded-lg object-cover"
                   />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{item.product.name}</p>
-                    <p className="font-mono text-xs text-primary-500">{item.product.product_code}</p>
-                    <p className="text-xs text-neutral-500">{item.quantity}x {formatIDR(item.product.selling_price)}</p>
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{getCartItemName(item)}</p>
+                    <p className="font-mono text-xs text-primary-500">{getCartItemCode(item)}</p>
+                    <p className="text-xs text-neutral-500">{item.quantity}x {formatIDR(getCartItemPrice(item))}</p>
                   </div>
-                  <p className="text-sm font-semibold">{formatIDR(item.product.selling_price * item.quantity)}</p>
+                  <p className="text-sm font-semibold">{formatIDR(getCartItemPrice(item) * item.quantity)}</p>
                 </div>
               ))}
             </div>

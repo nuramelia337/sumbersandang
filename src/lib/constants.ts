@@ -21,9 +21,8 @@ export function genPONumber(): string {
   return `PO${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export function genProductCode(slug: string, n: number): string {
-  const prefix = (slug || 'GEN').slice(0, 3).toUpperCase();
-  return `${prefix}-${String(n).padStart(4, '0')}`;
+export function genProductCode(_slug: string, n: number): string {
+  return `SS${String(n).padStart(3, '0')}`;
 }
 
 export function genBarcode(code: string): string {
@@ -59,6 +58,17 @@ export async function uploadProductImage(file: Blob, productCode: string): Promi
   const { error } = await supabase.storage.from('products').upload(path, file, { contentType: 'image/jpeg', upsert: true });
   if (error) throw new Error(`Upload gagal: ${error.message}`);
   return path;
+}
+
+export async function uploadProductImages(files: Blob[], productCode: string): Promise<string[]> {
+  const uploaded: string[] = [];
+  for (const [index, file] of files.entries()) {
+    const path = `${productCode}-${Date.now()}-${index}.jpg`;
+    const { error } = await supabase.storage.from('products').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: true });
+    if (error) throw new Error(`Upload gagal: ${error.message}`);
+    uploaded.push(path);
+  }
+  return uploaded;
 }
 
 export const PAYMENT_METHODS = [

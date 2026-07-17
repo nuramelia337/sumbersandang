@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDateTime, waMessage } from '../../lib/constants';
 import { Search, MessageCircle, Eye, X } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/types';
+import { logActivity, transitionOrderInventory } from '../../lib/business';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-warning-100 text-warning-700',
@@ -53,12 +54,8 @@ export default function AdminOrders() {
     if (status === 'completed') {
       await supabase.from('orders').update({ completed_at: new Date().toISOString(), payment_status: 'paid' }).eq('id', id);
     }
-    await supabase.from('activity_logs').insert({
-      action: 'order_status_updated',
-      entity_type: 'order',
-      entity_id: id,
-      description: `Order status changed to ${status}`,
-    });
+    await transitionOrderInventory(id, status);
+    await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
     loadOrders();
     if (selectedOrder?.id === id) {
       setSelectedOrder({ ...selectedOrder, order_status: status as any });
@@ -196,7 +193,9 @@ export default function AdminOrders() {
                   <div key={item.id} className="flex justify-between border-b border-neutral-100 pb-2 dark:border-neutral-800">
                     <div>
                       <p className="text-sm font-medium">{item.product_name}</p>
-                      <p className="text-xs text-neutral-500">{item.quantity}x {formatIDR(item.unit_price)}</p>
+                      <p className="text-xs text-neutral-500">
+                        {item.item_type === 'package' ? 'Paket Usaha · ' : ''}{item.quantity}x {formatIDR(item.unit_price)}
+                      </p>
                     </div>
                     <p className="text-sm font-semibold">{formatIDR(item.subtotal)}</p>
                   </div>

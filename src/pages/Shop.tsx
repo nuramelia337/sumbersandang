@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Product, Category } from '../lib/types';
+import type { BusinessPackage, Product, Category } from '../lib/types';
 import ProductCard from '../components/ProductCard';
+import PackageCard from '../components/PackageCard';
+import { loadPublicPackages } from '../lib/business';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -12,6 +14,7 @@ interface Props {
 
 export default function Shop({ onNavigate, initialCategory, initialSearch }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [packages, setPackages] = useState<BusinessPackage[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
@@ -28,6 +31,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
     (async () => {
       const { data: cats } = await supabase.from('categories').select('*').order('sort_order');
       setCategories(cats || []);
+      setPackages(await loadPublicPackages(12));
     })();
   }, []);
 
@@ -144,6 +148,14 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
 
         {/* Products */}
         <div className="flex-1">
+          {packages.length > 0 && selectedCat === 'all' && !search && (
+            <div className="mb-8">
+              <h2 className="mb-4 font-serif text-xl font-bold text-neutral-900 dark:text-neutral-50">Paket Usaha</h2>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {packages.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} />)}
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               {[...Array(9)].map((_, i) => (

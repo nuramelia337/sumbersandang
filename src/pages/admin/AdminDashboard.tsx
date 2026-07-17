@@ -26,10 +26,13 @@ export default function AdminDashboard() {
     cashRevenue: 0,
     saldoRevenue: 0,
     transferRevenue: 0,
+    todaySold: 0,
+    packagesSold: 0,
   });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [latestProducts, setLatestProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,25 +47,27 @@ export default function AdminDashboard() {
         supabase.from('orders').select('*'),
         supabase.from('products').select('*'),
         supabase.from('customers').select('id'),
-        supabase.from('order_items').select('product_name, quantity, unit_price, purchase_price'),
+        supabase.from('order_items').select('order_id, product_name, quantity, unit_price, purchase_price, item_type, created_at'),
       ]);
 
       const allOrders = orders.data || [];
       const allProducts = products.data || [];
       const allItems = orderItems.data || [];
 
-      const paidOrders = allOrders.filter((o) => o.payment_status === 'paid' || o.order_status === 'completed');
-      const todayRev = paidOrders.filter((o) => o.created_at >= todayStart).reduce((s, o) => s + o.total_amount, 0);
-      const weekRev = paidOrders.filter((o) => o.created_at >= weekAgo).reduce((s, o) => s + o.total_amount, 0);
-      const monthRev = paidOrders.filter((o) => o.created_at >= monthStart).reduce((s, o) => s + o.total_amount, 0);
-      const yearRev = paidOrders.filter((o) => o.created_at >= yearStart).reduce((s, o) => s + o.total_amount, 0);
+      const validOrders = allOrders.filter((o) => !['cancelled', 'returned', 'refunded'].includes(o.order_status));
+      const validOrderIds = new Set(validOrders.map((o) => o.id));
+      const validItems = allItems.filter((i) => !i.order_id || validOrderIds.has(i.order_id));
+      const todayRev = validOrders.filter((o) => o.created_at >= todayStart).reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const weekRev = validOrders.filter((o) => o.created_at >= weekAgo).reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const monthRev = validOrders.filter((o) => o.created_at >= monthStart).reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const yearRev = validOrders.filter((o) => o.created_at >= yearStart).reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
-      const cashRevenue = paidOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + o.total_amount, 0);
-      const saldoRevenue = paidOrders.filter((o) => o.payment_method === 'saldo').reduce((s, o) => s + o.total_amount, 0);
-      const transferRevenue = paidOrders.filter((o) => o.payment_method === 'transfer').reduce((s, o) => s + o.total_amount, 0);
+      const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const saldoRevenue = validOrders.filter((o) => o.payment_method === 'saldo').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const transferRevenue = validOrders.filter((o) => o.payment_method === 'transfer').reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
-      const totalCogs = allItems.reduce((s, i) => s + i.purchase_price * i.quantity, 0);
-      const grossProfit = paidOrders.reduce((s, o) => s + o.total_amount, 0) - totalCogs;
+      const totalCogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
+      const grossProfit = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) - totalCogs;
       const inventoryValue = allProducts.reduce((s, p) => s + p.purchase_price * p.stock, 0);
 
       const productSales: Record<string, number> = {};
@@ -73,11 +78,13 @@ export default function AdminDashboard() {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
 
-      const totalSold = allItems.reduce((s, i) => s + i.quantity, 0);
-      const totalRevenue = paidOrders.reduce((s, o) => s + o.total_amount, 0);
+      const totalSold = validItems.reduce((s, i) => s + Number(i.quantity || 0), 0);
+      const todaySold = validItems.filter((i) => i.created_at >= todayStart).reduce((s, i) => s + Number(i.quantity || 0), 0);
+      const packagesSold = validItems.filter((i) => i.item_type === 'package').reduce((s, i) => s + Number(i.quantity || 0), 0);
+      const totalRevenue = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const totalStock = allProducts.reduce((s, p) => s + p.stock, 0);
-      const readyProducts = allProducts.filter((p) => p.stock > 0).length;
-      const soldProducts = allProducts.filter((p) => p.stock <= 0).length;
+      const readyProducts = allProducts.filter((p) => (p.availability_status || (p.stock > 0 ? 'ready' : 'sold')) === 'ready').length;
+      const soldProducts = allProducts.filter((p) => (p.availability_status || (p.stock > 0 ? 'ready' : 'sold')) === 'sold').length;
 
       setStats({
         todayRevenue: todayRev,
@@ -89,7 +96,7 @@ export default function AdminDashboard() {
         totalProducts: allProducts.length,
         lowStock: allProducts.filter((p) => p.stock <= p.min_stock).length,
         totalCustomers: customers.data?.length || 0,
-        avgOrderValue: paidOrders.length > 0 ? paidOrders.reduce((s, o) => s + o.total_amount, 0) / paidOrders.length : 0,
+        avgOrderValue: validOrders.length > 0 ? validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) / validOrders.length : 0,
         totalCogs,
         grossProfit,
         inventoryValue,
@@ -101,11 +108,14 @@ export default function AdminDashboard() {
         cashRevenue,
         saldoRevenue,
         transferRevenue,
+        todaySold,
+        packagesSold,
       });
 
       setRecentOrders(allOrders.slice(0, 5));
       setLowStockProducts(allProducts.filter((p) => p.stock <= p.min_stock).slice(0, 5));
       setTopProducts(top);
+      setLatestProducts(allProducts.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 5));
       setLoading(false);
     })();
   }, []);
@@ -113,7 +123,9 @@ export default function AdminDashboard() {
   const cards = [
     { label: 'Total Uang Masuk', value: formatIDR(stats.totalRevenue), icon: DollarSign, color: 'bg-success-500' },
     { label: 'Barang Terjual', value: `${stats.totalSold} pcs`, icon: CheckCircle, color: 'bg-primary-500' },
+    { label: 'Terjual Hari Ini', value: `${stats.todaySold} pcs`, icon: CheckCircle, color: 'bg-accent-500' },
     { label: 'Total Stok Barang', value: `${stats.totalStock} pcs`, icon: Warehouse, color: 'bg-secondary-500' },
+    { label: 'Paket Usaha Terjual', value: `${stats.packagesSold}`, icon: Package, color: 'bg-primary-700' },
     { label: 'Produk Ready', value: stats.readyProducts.toString(), icon: Package, color: 'bg-success-600' },
     { label: 'Produk Sold Out', value: stats.soldProducts.toString(), icon: TrendingDown, color: 'bg-neutral-700' },
     { label: 'Pendapatan Hari Ini', value: formatIDR(stats.todayRevenue), icon: DollarSign, color: 'bg-success-500' },
@@ -162,8 +174,8 @@ export default function AdminDashboard() {
         <div className="rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-white/80">Barang Terjual</p>
-              <p className="mt-2 text-2xl font-bold">{stats.totalSold} pcs</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-white/80">Barang Terjual Hari Ini</p>
+              <p className="mt-2 text-2xl font-bold">{stats.todaySold} pcs</p>
             </div>
             <CheckCircle size={32} className="text-white/70" />
           </div>
@@ -280,23 +292,37 @@ export default function AdminDashboard() {
       </div>
 
       {/* Top products */}
-      <div className="card p-5">
-        <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Produk Terlaris</h2>
-        {topProducts.length === 0 ? (
-          <p className="text-sm text-neutral-400">Belum ada data penjualan</p>
-        ) : (
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="card p-5">
+          <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Produk Terlaris</h2>
+          {topProducts.length === 0 ? (
+            <p className="text-sm text-neutral-400">Belum ada data penjualan</p>
+          ) : (
+            <div className="space-y-3">
+              {topProducts.map(([name, qty], i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700 dark:bg-neutral-800 dark:text-primary-400">{i + 1}</span>
+                  <p className="flex-1 text-sm font-medium text-neutral-900 dark:text-neutral-100">{name}</p>
+                  <p className="text-sm text-neutral-500">{qty} terjual</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="card p-5">
+          <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Produk Terbaru</h2>
           <div className="space-y-3">
-            {topProducts.map(([name, qty], i) => (
-              <div key={i} className="flex items-center gap-4">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700 dark:bg-neutral-800 dark:text-primary-400">
-                  {i + 1}
-                </span>
-                <p className="flex-1 text-sm font-medium text-neutral-900 dark:text-neutral-100">{name}</p>
-                <p className="text-sm text-neutral-500">{qty} terjual</p>
+            {latestProducts.map((p) => (
+              <div key={p.id} className="flex items-center justify-between border-b border-neutral-100 pb-3 dark:border-neutral-800">
+                <div>
+                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{p.name}</p>
+                  <p className="text-xs text-neutral-500">{p.product_code}</p>
+                </div>
+                <p className="text-sm font-semibold text-primary-600">{formatIDR(p.selling_price)}</p>
               </div>
             ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

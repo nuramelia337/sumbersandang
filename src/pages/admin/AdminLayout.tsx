@@ -4,13 +4,16 @@ import { BRAND } from '../../lib/constants';
 import { useTheme } from '../../lib/theme';
 import {
   LayoutDashboard, Package, ShoppingCart, Warehouse, FileBarChart,
-  Bell, LogOut, Menu, X, Moon, Sun
+  Bell, LogOut, Menu, X, Moon, Sun, Boxes, MonitorCog, Shield
 } from 'lucide-react';
 import AdminDashboard from './AdminDashboard';
 import AdminProducts from './AdminProducts';
 import AdminOrders from './AdminOrders';
 import AdminInventory from './AdminInventory';
 import AdminReports from './AdminReports';
+import AdminPackages from './AdminPackages';
+import AdminWebsite from './AdminWebsite';
+import AdminManagement from './AdminManagement';
 
 interface Props {
   onLogout: () => void;
@@ -42,13 +45,16 @@ export default function AdminLayout({ onLogout }: Props) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'products', label: 'Produk', icon: Package },
+    { id: 'packages', label: 'Paket Usaha', icon: Boxes },
     { id: 'orders', label: 'Pesanan', icon: ShoppingCart },
     { id: 'inventory', label: 'Inventory', icon: Warehouse },
     { id: 'reports', label: 'Laporan', icon: FileBarChart },
+    { id: 'website', label: 'Website', icon: MonitorCog },
+    { id: 'admin', label: 'Admin', icon: Shield },
   ];
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin_auth');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     onLogout();
   };
 
@@ -161,9 +167,12 @@ export default function AdminLayout({ onLogout }: Props) {
         <main className="p-4 sm:p-6 lg:p-8">
           {page === 'dashboard' && <AdminDashboard />}
           {page === 'products' && <AdminProducts />}
+          {page === 'packages' && <AdminPackages />}
           {page === 'orders' && <AdminOrders />}
           {page === 'inventory' && <AdminInventory />}
           {page === 'reports' && <AdminReports />}
+          {page === 'website' && <AdminWebsite />}
+          {page === 'admin' && <AdminManagement />}
         </main>
       </div>
     </div>

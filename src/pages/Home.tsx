@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, Sparkles, Truck, Shield, Heart, Recycle } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
-import type { Product, Category } from '../lib/types';
+import type { BusinessPackage, Product, Category, PromoBannerSetting, Testimonial } from '../lib/types';
 import ProductCard from '../components/ProductCard';
+import PackageCard from '../components/PackageCard';
+import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadPublicPackages, loadTestimonials } from '../lib/business';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -13,27 +15,32 @@ export default function Home({ onNavigate }: Props) {
   const [featured, setFeatured] = useState<Product[]>([]);
   const [latest, setLatest] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [packages, setPackages] = useState<BusinessPackage[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [promo, setPromo] = useState<PromoBannerSetting>(DEFAULT_PROMO_BANNER);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [feat, lat, cats] = await Promise.all([
-        supabase.from('products').select('*').eq('is_featured', true).eq('status', 'active').limit(4),
+      const [feat, lat, cats, pkgs, quotes, banner] = await Promise.all([
+        supabase.from('products').select('*').eq('is_featured', true).eq('status', 'active').neq('availability_status', 'sold').limit(4),
         supabase.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(8),
         supabase.from('categories').select('*').order('sort_order'),
+        loadPublicPackages(6),
+        loadTestimonials(),
+        loadPromoBanner(),
       ]);
       setFeatured(feat.data || []);
       setLatest(lat.data || []);
       setCategories(cats.data || []);
+      setPackages(pkgs);
+      setTestimonials(quotes);
+      setPromo(banner);
       setLoading(false);
     })();
   }, []);
 
-  const heroImages = [
-    'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg',
-    'https://images.pexels.com/photos/1488463/pexels-photo-1488463.jpeg',
-    'https://images.pexels.com/photos/2065200/pexels-photo-2065200.jpeg',
-  ];
+  const heroImage = promo.is_active ? promo.image_url : 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg';
 
   return (
     <div className="animate-fade-in">
@@ -41,7 +48,7 @@ export default function Home({ onNavigate }: Props) {
       <section className="relative min-h-[80vh] overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src={heroImages[0]}
+            src={heroImage}
             alt="Hero"
             className="h-full w-full object-cover"
           />
@@ -53,19 +60,19 @@ export default function Home({ onNavigate }: Props) {
               <Sparkles size={14} /> Premium Thrift Fashion
             </span>
             <h1 className="mt-6 font-serif text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-              Good Stuff,<br />
-              <span className="text-secondary-300">Second Chance,</span><br />
-              Better You.
+              {promo.is_active ? promo.title : 'Good Stuff,'}<br />
+              <span className="text-secondary-300">{promo.is_active ? 'Ready to Resell' : 'Second Chance,'}</span><br />
+              {promo.is_active ? 'from Sumber Sandang.' : 'Better You.'}
             </h1>
             <p className="mt-6 max-w-lg text-lg text-white/80">
-              Temukan pakaian thrift berkualitas premium dengan harga terjangkau. Setiap potong punya cerita, setiap pembelian memberi keberlanjutan.
+              {promo.is_active ? promo.subtitle : 'Temukan pakaian thrift berkualitas premium dengan harga terjangkau. Setiap potong punya cerita, setiap pembelian memberi keberlanjutan.'}
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <button
-                onClick={() => onNavigate('shop')}
+                onClick={() => onNavigate(promo.cta_page || 'shop')}
                 className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary-700 hover:shadow-xl active:scale-95"
               >
-                Belanja Sekarang <ArrowRight size={18} />
+                {promo.cta_label || 'Belanja Sekarang'} <ArrowRight size={18} />
               </button>
               <button
                 onClick={() => onNavigate('about')}
@@ -176,11 +183,50 @@ export default function Home({ onNavigate }: Props) {
         )}
       </section>
 
+      {/* Business packages */}
+      {packages.length > 0 && (
+        <section className="bg-white py-16 dark:bg-neutral-900">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mb-8 flex items-end justify-between">
+              <div>
+                <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Paket Usaha</h2>
+                <p className="mt-2 text-neutral-500">Bundle siap jual untuk reseller</p>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {packages.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} />)}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Testimonials */}
+      {testimonials.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mb-8 text-center">
+            <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Testimoni Pelanggan</h2>
+            <p className="mt-2 text-neutral-500">Cerita dari pembeli dan reseller</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {testimonials.slice(0, 3).map((t) => (
+              <div key={t.id} className="card p-5">
+                <div className="mb-3 text-secondary-500">{'★'.repeat(t.rating)}</div>
+                <p className="text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">"{t.message}"</p>
+                <div className="mt-4">
+                  <p className="font-semibold text-neutral-900 dark:text-neutral-100">{t.customer_name}</p>
+                  {t.customer_handle && <p className="text-xs text-neutral-500">{t.customer_handle}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* CTA */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-600 to-accent-600 px-8 py-16 text-center">
           <div className="absolute inset-0 opacity-20">
-            <img src={heroImages[1]} alt="" className="h-full w-full object-cover" />
+            <img src="https://images.pexels.com/photos/2065200/pexels-photo-2065200.jpeg" alt="" className="h-full w-full object-cover" />
           </div>
           <div className="relative">
             <h2 className="font-serif text-3xl font-bold text-white sm:text-4xl">

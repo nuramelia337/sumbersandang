@@ -1,3 +1,7 @@
+export type ProductAvailabilityStatus = 'ready' | 'reserved' | 'sold';
+export type LegacyProductStatus = 'active' | 'inactive' | 'sold_out';
+export type StorageLocation = 'rak_a' | 'rak_b' | 'gudang' | 'etalase';
+
 export interface Category {
   id: string;
   name: string;
@@ -29,8 +33,73 @@ export interface Product {
   video_url?: string;
   tags: string[];
   is_featured: boolean;
-  status: 'active' | 'inactive' | 'sold_out';
+  status: LegacyProductStatus;
+  availability_status: ProductAvailabilityStatus;
+  storage_location?: StorageLocation | null;
+  internal_notes?: string | null;
   weight_grams: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessPackage {
+  id: string;
+  package_code: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  cover_image_path?: string | null;
+  cover_image_url?: string | null;
+  is_featured: boolean;
+  availability_status: ProductAvailabilityStatus;
+  status: LegacyProductStatus;
+  internal_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  business_package_items?: BusinessPackageItem[];
+}
+
+export interface BusinessPackageItem {
+  id: string;
+  package_id: string;
+  product_id: string;
+  created_at: string;
+  product?: Product;
+}
+
+export interface SiteSetting {
+  id: string;
+  key: string;
+  value: Record<string, unknown>;
+  updated_at: string;
+}
+
+export interface PromoBannerSetting {
+  title: string;
+  subtitle: string;
+  cta_label: string;
+  cta_page: string;
+  image_url: string;
+  is_active: boolean;
+}
+
+export interface Testimonial {
+  id: string;
+  customer_name: string;
+  customer_handle?: string | null;
+  message: string;
+  rating: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface AdminProfile {
+  id: string;
+  email: string;
+  full_name?: string | null;
+  role: 'owner' | 'admin';
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -51,6 +120,8 @@ export interface Customer {
   updated_at: string;
 }
 
+export type PaymentMethod = 'cash' | 'transfer' | 'qris' | 'cod' | 'saldo';
+
 export interface Order {
   id: string;
   order_number: string;
@@ -66,7 +137,7 @@ export interface Order {
   subtotal: number;
   discount_amount: number;
   total_amount: number;
-  payment_method: string;
+  payment_method: PaymentMethod;
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   order_status: OrderStatus;
   coupon_code?: string;
@@ -97,6 +168,8 @@ export interface OrderItem {
   id: string;
   order_id: string;
   product_id?: string;
+  package_id?: string | null;
+  item_type?: 'product' | 'package';
   product_code: string;
   product_name: string;
   quantity: number;
@@ -175,15 +248,26 @@ export interface Notification {
 
 export interface ActivityLog {
   id: string;
+  admin_id?: string | null;
   action: string;
   entity_type?: string;
   entity_id?: string;
   description?: string;
   metadata: Record<string, unknown>;
   created_at: string;
+  admin_profiles?: Pick<AdminProfile, 'email' | 'full_name'> | null;
 }
 
-export interface CartItem {
+export interface ProductCartItem {
+  kind: 'product';
   product: Product;
   quantity: number;
 }
+
+export interface PackageCartItem {
+  kind: 'package';
+  package: BusinessPackage;
+  quantity: number;
+}
+
+export type CartItem = ProductCartItem | PackageCartItem;

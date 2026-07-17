@@ -3,6 +3,7 @@ import { useCart } from '../lib/cart';
 import { formatIDR } from '../lib/constants';
 import { getProductImageUrl } from '../lib/imageUtils';
 import type { Product } from '../lib/types';
+import { AVAILABILITY_LABELS, itemStatusColor, productAvailabilityFromStock, productIsAvailable } from '../lib/business';
 
 interface Props {
   product: Product;
@@ -12,6 +13,8 @@ interface Props {
 export default function ProductCard({ product, onClick }: Props) {
   const { addItem } = useCart();
   const img = getProductImageUrl(product);
+  const availability = productAvailabilityFromStock(product);
+  const available = productIsAvailable(product);
 
   const conditionColors: Record<string, string> = {
     'Like New': 'bg-success-100 text-success-700',
@@ -34,25 +37,23 @@ export default function ProductCard({ product, onClick }: Props) {
           <span className={`badge ${conditionColors[product.condition] || conditionColors.Good}`}>{product.condition}</span>
         </div>
         <div className="absolute right-3 top-3">
-          {product.stock > 0 ? (
-            <span className="badge bg-success-500 text-white">Ready</span>
-          ) : (
-            <span className="badge bg-neutral-900 text-white">Sold</span>
-          )}
+          <span className={`badge ${itemStatusColor(availability)}`}>{AVAILABILITY_LABELS[availability]}</span>
         </div>
-        {product.stock <= 0 && (
+        {!available && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-            <span className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-neutral-900">Sold Out</span>
+            <span className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-neutral-900">
+              {availability === 'reserved' ? 'Reserved' : 'Sold Out'}
+            </span>
           </div>
         )}
-        {product.stock > 0 && product.stock <= product.min_stock && (
+        {available && product.stock > 0 && product.stock <= product.min_stock && (
           <div className="absolute bottom-3 left-3">
             <span className="badge bg-warning-500 text-white">Sisa {product.stock}</span>
           </div>
         )}
         <button
           onClick={(e) => { e.stopPropagation(); addItem(product); }}
-          disabled={product.stock <= 0}
+          disabled={!available}
           className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-600 opacity-0 shadow-lg transition-all duration-300 hover:bg-primary-600 hover:text-white group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ShoppingBag size={18} />
