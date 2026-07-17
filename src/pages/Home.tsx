@@ -1,0 +1,203 @@
+import { useState, useEffect } from 'react';
+import { ArrowRight, Sparkles, Truck, Shield, Heart, Recycle } from 'lucide-react';
+
+import { supabase } from '../lib/supabase';
+import type { Product, Category } from '../lib/types';
+import ProductCard from '../components/ProductCard';
+
+interface Props {
+  onNavigate: (page: string, data?: any) => void;
+}
+
+export default function Home({ onNavigate }: Props) {
+  const [featured, setFeatured] = useState<Product[]>([]);
+  const [latest, setLatest] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const [feat, lat, cats] = await Promise.all([
+        supabase.from('products').select('*').eq('is_featured', true).eq('status', 'active').limit(4),
+        supabase.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(8),
+        supabase.from('categories').select('*').order('sort_order'),
+      ]);
+      setFeatured(feat.data || []);
+      setLatest(lat.data || []);
+      setCategories(cats.data || []);
+      setLoading(false);
+    })();
+  }, []);
+
+  const heroImages = [
+    'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg',
+    'https://images.pexels.com/photos/1488463/pexels-photo-1488463.jpeg',
+    'https://images.pexels.com/photos/2065200/pexels-photo-2065200.jpeg',
+  ];
+
+  return (
+    <div className="animate-fade-in">
+      {/* Hero */}
+      <section className="relative min-h-[80vh] overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src={heroImages[0]}
+            alt="Hero"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-neutral-900/70 via-neutral-900/50 to-transparent" />
+        </div>
+        <div className="relative mx-auto flex max-w-7xl flex-col justify-center px-4 py-24 sm:px-6 lg:min-h-[80vh] lg:px-8">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+              <Sparkles size={14} /> Premium Thrift Fashion
+            </span>
+            <h1 className="mt-6 font-serif text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+              Good Stuff,<br />
+              <span className="text-secondary-300">Second Chance,</span><br />
+              Better You.
+            </h1>
+            <p className="mt-6 max-w-lg text-lg text-white/80">
+              Temukan pakaian thrift berkualitas premium dengan harga terjangkau. Setiap potong punya cerita, setiap pembelian memberi keberlanjutan.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-4">
+              <button
+                onClick={() => onNavigate('shop')}
+                className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary-700 hover:shadow-xl active:scale-95"
+              >
+                Belanja Sekarang <ArrowRight size={18} />
+              </button>
+              <button
+                onClick={() => onNavigate('about')}
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20"
+              >
+                Tentang Kami
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust badges */}
+      <section className="border-b border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
+          {[
+            { icon: Recycle, title: 'Sustainable Fashion', desc: 'Preloved premium items' },
+            { icon: Shield, title: 'Kualitas Terjamin', desc: 'Setiap item di-inspect' },
+            { icon: Truck, title: 'Pengiriman Cepat', desc: 'Ke seluruh Indonesia' },
+            { icon: Heart, title: 'Harga Terjangkau', desc: 'Premium tanpa mahal' },
+          ].map((b, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-neutral-800 dark:text-primary-400">
+                <b.icon size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{b.title}</p>
+                <p className="text-xs text-neutral-500">{b.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Categories */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mb-8 text-center">
+          <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Kategori</h2>
+          <p className="mt-2 text-neutral-500">Temukan style favoritmu</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => onNavigate('shop', { category: cat.slug })}
+              className="group relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-neutral-800 dark:to-neutral-900"
+            >
+              <div className="flex h-full flex-col items-center justify-center p-4">
+                <p className="font-serif text-lg font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-primary-600">
+                  {cat.name}
+                </p>
+                <p className="mt-1 text-xs text-neutral-500">{cat.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Featured */}
+      {featured.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mb-8 flex items-end justify-between">
+            <div>
+              <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Pilihan Editor</h2>
+              <p className="mt-2 text-neutral-500">Item premium pilihan tim kami</p>
+            </div>
+            <button
+              onClick={() => onNavigate('shop')}
+              className="hidden items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 sm:flex"
+            >
+              Lihat Semua <ArrowRight size={16} />
+            </button>
+          </div>
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="skeleton aspect-[3/4]" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              {featured.map((p) => (
+                <ProductCard key={p.id} product={p} onClick={() => onNavigate('product', { id: p.id })} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Latest */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mb-8 text-center">
+          <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Baru Tiba</h2>
+          <p className="mt-2 text-neutral-500">Stok terbaru setiap minggu</p>
+        </div>
+        {loading ? (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="skeleton aspect-[3/4]" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {latest.map((p) => (
+              <ProductCard key={p.id} product={p} onClick={() => onNavigate('product', { id: p.id })} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* CTA */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-600 to-accent-600 px-8 py-16 text-center">
+          <div className="absolute inset-0 opacity-20">
+            <img src={heroImages[1]} alt="" className="h-full w-full object-cover" />
+          </div>
+          <div className="relative">
+            <h2 className="font-serif text-3xl font-bold text-white sm:text-4xl">
+              Mulai Perjalanan Thrift-mu
+            </h2>
+            <p className="mx-auto mt-4 max-w-lg text-white/80">
+              Bergabung dengan ribuan pembeli cerdas yang memilih fashion berkelanjutan tanpa kompromi gaya.
+            </p>
+            <button
+              onClick={() => onNavigate('shop')}
+              className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-primary-600 shadow-lg transition-all hover:shadow-xl active:scale-95"
+            >
+              Jelajahi Koleksi <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}

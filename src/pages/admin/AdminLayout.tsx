@@ -1,0 +1,171 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { BRAND } from '../../lib/constants';
+import { useTheme } from '../../lib/theme';
+import {
+  LayoutDashboard, Package, ShoppingCart, Warehouse, FileBarChart,
+  Bell, LogOut, Menu, X, Moon, Sun
+} from 'lucide-react';
+import AdminDashboard from './AdminDashboard';
+import AdminProducts from './AdminProducts';
+import AdminOrders from './AdminOrders';
+import AdminInventory from './AdminInventory';
+import AdminReports from './AdminReports';
+
+interface Props {
+  onLogout: () => void;
+}
+
+export default function AdminLayout({ onLogout }: Props) {
+  const [page, setPage] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotif, setShowNotif] = useState(false);
+  const { theme, toggle } = useTheme();
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(20);
+    setNotifications(data || []);
+  };
+
+  const markRead = async (id: string) => {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    loadNotifications();
+  };
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'products', label: 'Produk', icon: Package },
+    { id: 'orders', label: 'Pesanan', icon: ShoppingCart },
+    { id: 'inventory', label: 'Inventory', icon: Warehouse },
+    { id: 'reports', label: 'Laporan', icon: FileBarChart },
+  ];
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin_auth');
+    onLogout();
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+      {/* Sidebar */}
+      <aside
+        className={`fixed left-0 top-0 z-50 h-full w-64 transform border-r border-neutral-200 bg-white transition-transform dark:border-neutral-800 dark:bg-neutral-900 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0`}
+      >
+        <div className="flex h-16 items-center justify-between border-b border-neutral-200 px-4 dark:border-neutral-800">
+          <div className="flex items-center gap-3">
+            <img src={BRAND.logo} alt="Logo" className="h-9 w-9 rounded-full object-cover ring-2 ring-primary-200" />
+            <div>
+              <p className="font-serif text-sm font-bold text-neutral-900 dark:text-neutral-50">Sumber Sandang</p>
+              <p className="text-[10px] text-primary-600">Admin Panel</p>
+            </div>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden">
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav className="p-4">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => { setPage(item.id); setSidebarOpen(false); }}
+              className={`mb-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+                page === item.id
+                  ? 'bg-primary-600 text-white'
+                  : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
+              }`}
+            >
+              <item.icon size={18} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="absolute bottom-0 left-0 right-0 border-t border-neutral-200 p-4 dark:border-neutral-800">
+          <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-error-600 hover:bg-error-50 dark:hover:bg-error-900/30">
+            <LogOut size={18} />
+            Keluar
+          </button>
+        </div>
+      </aside>
+
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Main content */}
+      <div className="md:ml-64">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/90 px-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/90 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="md:hidden">
+              <Menu size={20} />
+            </button>
+            <h1 className="font-serif text-lg font-bold capitalize text-neutral-900 dark:text-neutral-50">
+              {navItems.find((n) => n.id === page)?.label}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button onClick={toggle} className="rounded-full p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800">
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+            <div className="relative">
+              <button onClick={() => setShowNotif(!showNotif)} className="relative rounded-full p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent-500 text-[10px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              {showNotif && (
+                <div className="absolute right-0 top-12 z-50 w-80 rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+                  <div className="border-b border-neutral-200 p-4 dark:border-neutral-700">
+                    <h3 className="font-serif text-sm font-bold">Notifikasi</h3>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="p-4 text-center text-sm text-neutral-400">Tidak ada notifikasi</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => markRead(n.id)}
+                          className={`block w-full border-b border-neutral-100 p-3 text-left hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800 ${!n.is_read ? 'bg-primary-50/50 dark:bg-neutral-800/50' : ''}`}
+                        >
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{n.title}</p>
+                          <p className="text-xs text-neutral-500">{n.message}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-bold text-primary-700 dark:bg-neutral-800 dark:text-primary-400">
+              A
+            </div>
+          </div>
+        </header>
+
+        <main className="p-4 sm:p-6 lg:p-8">
+          {page === 'dashboard' && <AdminDashboard />}
+          {page === 'products' && <AdminProducts />}
+          {page === 'orders' && <AdminOrders />}
+          {page === 'inventory' && <AdminInventory />}
+          {page === 'reports' && <AdminReports />}
+        </main>
+      </div>
+    </div>
+  );
+}
