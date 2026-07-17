@@ -12,11 +12,12 @@ import ProductDetail from './pages/ProductDetail';
 import Checkout from './pages/Checkout';
 import About from './pages/About';
 import Contact from './pages/Contact';
+import Rules from './pages/Rules';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './pages/admin/AdminLayout';
 import { supabase } from './lib/supabase';
 
-type Page = 'home' | 'shop' | 'product' | 'checkout' | 'about' | 'contact' | 'admin' | 'wishlist';
+type Page = 'home' | 'shop' | 'product' | 'checkout' | 'about' | 'contact' | 'rules' | 'admin' | 'wishlist';
 
 const PAGE_PATHS: Record<Page, string> = {
   home: '/',
@@ -25,6 +26,7 @@ const PAGE_PATHS: Record<Page, string> = {
   checkout: '/checkout',
   about: '/about',
   contact: '/contact',
+  rules: '/rules',
   admin: '/admin',
   wishlist: '/wishlist',
 };
@@ -36,6 +38,7 @@ function pageFromPath(pathname: string): Page {
   if (cleanPath === '/checkout') return 'checkout';
   if (cleanPath === '/about') return 'about';
   if (cleanPath === '/contact') return 'contact';
+  if (cleanPath === '/rules') return 'rules';
   if (cleanPath === '/wishlist') return 'wishlist';
   return 'home';
 }
@@ -169,6 +172,7 @@ function App() {
               {page === 'checkout' && <Checkout onNavigate={navigate} />}
               {page === 'about' && <About onNavigate={navigate} />}
               {page === 'contact' && <Contact />}
+              {page === 'rules' && <Rules />}
               {page === 'wishlist' && (
                 <div className="mx-auto flex max-w-7xl flex-col items-center justify-center px-4 py-20 text-center">
                   <h1 className="font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Wishlist</h1>

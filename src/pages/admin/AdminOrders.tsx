@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDateTime, waMessage } from '../../lib/constants';
 import { Search, MessageCircle, Eye, X } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/types';
-import { logActivity, transitionOrderInventory } from '../../lib/business';
+import { logActivity, PAYMENT_LABELS, SHIPPING_LABELS, transitionOrderInventory } from '../../lib/business';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-warning-100 text-warning-700',
@@ -33,6 +33,11 @@ export default function AdminOrders() {
   }, []);
 
   const loadOrders = async () => {
+    try {
+      await supabase.rpc('release_expired_keeps');
+    } catch {
+      // Non-blocking; orders can still load if the migration is not applied yet.
+    }
     const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
     setOrders(data || []);
     setLoading(false);
@@ -73,7 +78,9 @@ export default function AdminOrders() {
     const ig = igMatch ? `\nIG: @${igMatch[1]}` : '';
     const pickupMatch = (order.notes || '').match(/Ambil: (\S+ \S+)/);
     const pickup = pickupMatch ? `\nPengambilan: ${pickupMatch[1]}` : '';
-    const msg = `Halo ${order.customer_name}!${ig}\n\nPesanan Anda *${order.order_number}* telah kami terima.\nTotal: ${formatIDR(order.total_amount)}\nMetode: ${order.payment_method === 'transfer' ? 'Transfer Bank' : 'Cash'}${pickup}\n\nTerima kasih telah berbelanja di Sumber Sandang!`;
+    const paymentLabel = PAYMENT_LABELS[order.payment_method] || order.payment_method;
+    const shippingLabel = SHIPPING_LABELS[order.shipping_method] || order.shipping_method;
+    const msg = `Halo ${order.customer_name}!${ig}\n\nPesanan Anda *${order.order_number}* telah kami terima.\nTotal: ${formatIDR(order.total_amount)}\nMetode Pembayaran: ${paymentLabel}\nMetode Pengiriman: ${shippingLabel}${pickup}\n\nTerima kasih telah berbelanja di Sumber Sandang!`;
     window.open(waMessage(msg), '_blank');
   };
 
@@ -177,9 +184,9 @@ export default function AdminOrders() {
               </div>
               <div className="card p-4">
                 <h3 className="mb-2 text-sm font-semibold">Info Pembayaran</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Metode: {selectedOrder.payment_method === 'transfer' ? 'Transfer Bank' : selectedOrder.payment_method === 'saldo' ? 'Saldo' : 'Cash'}</p>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Metode: {PAYMENT_LABELS[selectedOrder.payment_method] || selectedOrder.payment_method}</p>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">Status: {selectedOrder.payment_status}</p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengiriman: {selectedOrder.shipping_method === 'pickup' ? 'Ambil di Toko' : 'Dikirim'}</p>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengiriman: {SHIPPING_LABELS[selectedOrder.shipping_method] || selectedOrder.shipping_method}</p>
                 {selectedOrder.shipping_method === 'pickup' && selectedOrder.notes && selectedOrder.notes.includes('Ambil:') && (
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengambilan: {(selectedOrder.notes.match(/Ambil: (\S+ \S+)/) || [])[1] || '-'}</p>
                 )}

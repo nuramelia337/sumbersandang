@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { Camera, Upload, Image as ImageIcon, Wand2, X, Check, Loader2 } from 'lucide-react';
 import { removeBackground } from '../lib/imageUtils';
-import { storageImageUrl } from '../lib/business';
+import { optimizeImage, storageImageUrl } from '../lib/business';
 import { useAlert } from './AlertProvider';
 
 interface ImageUploadProps {
@@ -33,18 +33,26 @@ export default function ImageUpload({
   const [showOptions, setShowOptions] = useState(false);
   const [bgRemoved, setBgRemoved] = useState(false);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { showAlert } = useAlert();
 
-  const handleFiles = useCallback((list: FileList | null) => {
+  const handleFiles = useCallback(async (list: FileList | null) => {
     const files = Array.from(list || []);
     if (files.length === 0) return;
+    setProcessing(true);
+    const optimized = await Promise.all(files.map(async (file) => {
+      const blob = await optimizeImage(file);
+      return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+    }));
+    setProcessing(false);
     if (multiple) {
-      setPreviews(files.map((file) => URL.createObjectURL(file)));
-      onImagesReady?.(files);
+      setSelectedFiles(optimized);
+      setPreviews(optimized.map((file) => URL.createObjectURL(file)));
+      onImagesReady?.(optimized);
       setShowOptions(false);
       return;
     }
-    const file = files[0];
+    const file = optimized[0];
     setOriginalFile(file);
     setPreviews([URL.createObjectURL(file)]);
     setBgRemoved(false);
@@ -52,13 +60,25 @@ export default function ImageUpload({
   }, [multiple, onImagesReady]);
 
   const handleRemoveBg = useCallback(async () => {
-    if (!originalFile) return;
+    if (!originalFile && selectedFiles.length === 0) return;
     setProcessing(true);
     try {
-      const blob = await removeBackground(originalFile, 38, 2);
-      setPreviews([URL.createObjectURL(blob)]);
+      if (multiple) {
+        const processed = await Promise.all(selectedFiles.map(async (file) => {
+          const noBg = await removeBackground(file, 38, 2);
+          const optimized = await optimizeImage(noBg, 1.1);
+          return new File([optimized], file.name, { type: 'image/jpeg' });
+        }));
+        setSelectedFiles(processed);
+        setPreviews(processed.map((file) => URL.createObjectURL(file)));
+        onImagesReady?.(processed);
+      } else if (originalFile) {
+        const blob = await removeBackground(originalFile, 38, 2);
+        const optimized = await optimizeImage(blob, 1.1);
+        setPreviews([URL.createObjectURL(optimized)]);
+        onImageReady?.(optimized);
+      }
       setBgRemoved(true);
-      onImageReady?.(blob);
     } catch (err) {
       console.error('BG removal failed:', err);
       showAlert({
@@ -69,7 +89,7 @@ export default function ImageUpload({
     } finally {
       setProcessing(false);
     }
-  }, [originalFile, onImageReady]);
+  }, [multiple, originalFile, selectedFiles, onImageReady, onImagesReady, showAlert]);
 
   const handleUseOriginal = useCallback(() => {
     if (originalFile) onImageReady?.(originalFile);
@@ -78,6 +98,7 @@ export default function ImageUpload({
   const handleClear = useCallback(() => {
     setPreviews([]);
     setOriginalFile(null);
+    setSelectedFiles([]);
     setBgRemoved(false);
     setShowOptions(false);
     onImagesReady?.([]);
@@ -113,14 +134,16 @@ export default function ImageUpload({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {!multiple && !bgRemoved && !processing && originalFile && (
+            {!bgRemoved && !processing && (originalFile || selectedFiles.length > 0) && (
               <>
                 <button type="button" onClick={handleRemoveBg} className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700">
                   <Wand2 className="h-4 w-4" /> Ganti Latar Putih
                 </button>
-                <button type="button" onClick={handleUseOriginal} className="inline-flex items-center gap-2 rounded-full bg-success-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-success-700">
-                  <Check className="h-4 w-4" /> Pakai Apa Adanya
-                </button>
+                {!multiple && (
+                  <button type="button" onClick={handleUseOriginal} className="inline-flex items-center gap-2 rounded-full bg-success-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-success-700">
+                    <Check className="h-4 w-4" /> Pakai Apa Adanya
+                  </button>
+                )}
               </>
             )}
             <button type="button" onClick={handleClear} className="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-100">

@@ -3,12 +3,13 @@ import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate } from '../../lib/constants';
 import { Download, TrendingUp, DollarSign, Package, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { PAYMENT_LABELS } from '../../lib/business';
 
 export default function AdminReports() {
   const [reportType, setReportType] = useState<'sales' | 'profit' | 'inventory' | 'customer'>('sales');
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
   const [data, setData] = useState<any[]>([]);
-  const [summary, setSummary] = useState({ revenue: 0, cogs: 0, profit: 0, orders: 0, items: 0, cashRevenue: 0, saldoRevenue: 0, transferRevenue: 0 });
+  const [summary, setSummary] = useState({ revenue: 0, cogs: 0, profit: 0, orders: 0, items: 0, bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,10 +38,10 @@ export default function AdminReports() {
       const cogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
       const profit = revenue - cogs;
 
-      const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-      const saldoRevenue = validOrders.filter((o) => o.payment_method === 'saldo').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-      const transferRevenue = validOrders.filter((o) => o.payment_method === 'transfer').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-      setSummary({ revenue, cogs, profit, orders: validOrders.length, items: validItems.length, cashRevenue, saldoRevenue, transferRevenue });
+      const bcaRevenue = validOrders.filter((o) => o.payment_method === 'bca').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const danaRevenue = validOrders.filter((o) => o.payment_method === 'dana').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const shopeepayRevenue = validOrders.filter((o) => o.payment_method === 'shopeepay').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      setSummary({ revenue, cogs, profit, orders: validOrders.length, items: validItems.length, bcaRevenue, danaRevenue, shopeepayRevenue });
       setData(validOrders.map((o) => ({
         date: o.created_at,
         order: o.order_number,
@@ -54,7 +55,7 @@ export default function AdminReports() {
       const prods = products || [];
       const totalValue = prods.reduce((s, p) => s + p.purchase_price * p.stock, 0);
       const totalSelling = prods.reduce((s, p) => s + p.selling_price * p.stock, 0);
-      setSummary({ revenue: totalSelling, cogs: totalValue, profit: totalSelling - totalValue, orders: prods.length, items: prods.reduce((s, p) => s + p.stock, 0), cashRevenue: 0, saldoRevenue: 0, transferRevenue: 0 });
+      setSummary({ revenue: totalSelling, cogs: totalValue, profit: totalSelling - totalValue, orders: prods.length, items: prods.reduce((s, p) => s + p.stock, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0 });
       setData(prods.map((p) => ({
         date: p.created_at,
         order: p.product_code,
@@ -67,7 +68,7 @@ export default function AdminReports() {
       const { data: customers } = await supabase.from('customers').select('*').order('total_spending', { ascending: false });
       const custs = customers || [];
       const totalRevenue = custs.reduce((s, c) => s + c.total_spending, 0);
-      setSummary({ revenue: totalRevenue, cogs: 0, profit: totalRevenue, orders: custs.length, items: custs.reduce((s, c) => s + c.total_orders, 0), cashRevenue: 0, saldoRevenue: 0, transferRevenue: 0 });
+      setSummary({ revenue: totalRevenue, cogs: 0, profit: totalRevenue, orders: custs.length, items: custs.reduce((s, c) => s + c.total_orders, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0 });
       setData(custs.map((c) => ({
         date: c.created_at,
         order: c.phone,
@@ -184,16 +185,16 @@ export default function AdminReports() {
           <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Pembayaran per Metode</h2>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl bg-success-50 p-4 dark:bg-success-900/20">
-              <p className="text-sm font-semibold text-success-700 dark:text-success-400">Cash</p>
-              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.cashRevenue)}</p>
+              <p className="text-sm font-semibold text-success-700 dark:text-success-400">{PAYMENT_LABELS.bca}</p>
+              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.bcaRevenue)}</p>
             </div>
             <div className="rounded-xl bg-primary-50 p-4 dark:bg-primary-900/20">
-              <p className="text-sm font-semibold text-primary-700 dark:text-primary-400">Saldo</p>
-              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.saldoRevenue)}</p>
+              <p className="text-sm font-semibold text-primary-700 dark:text-primary-400">{PAYMENT_LABELS.dana}</p>
+              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.danaRevenue)}</p>
             </div>
             <div className="rounded-xl bg-secondary-50 p-4 dark:bg-secondary-900/20">
-              <p className="text-sm font-semibold text-secondary-700 dark:text-secondary-400">Transfer</p>
-              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.transferRevenue)}</p>
+              <p className="text-sm font-semibold text-secondary-700 dark:text-secondary-400">{PAYMENT_LABELS.shopeepay}</p>
+              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.shopeepayRevenue)}</p>
             </div>
           </div>
         </div>

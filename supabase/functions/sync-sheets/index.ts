@@ -10,11 +10,19 @@ const SHEETS_WEBHOOK_URL = Deno.env.get("GOOGLE_SHEETS_WEBHOOK_URL") || "";
 
 function paymentLabel(method: string): string {
   const labels: Record<string, string> = {
-    cash: "Cash",
-    saldo: "Saldo",
-    transfer: "Transfer Bank",
-    qris: "QRIS",
-    cod: "COD",
+    bca: "BCA",
+    dana: "DANA",
+    shopeepay: "ShopeePay",
+  };
+  return labels[method] || method;
+}
+
+function shippingLabel(method: string): string {
+  const labels: Record<string, string> = {
+    pickup: "Ambil Sendiri",
+    jnt: "JNT",
+    spx: "SPX",
+    maxim: "Maxim",
   };
   return labels[method] || method;
 }
@@ -64,6 +72,9 @@ Deno.serve(async (req: Request) => {
     const sheets = ["Barang Keluar", "Dashboard Global", "Dashboard Terfilter", "Stok Barang", "Invoice", "Purchase Order"];
 
     let sentRows = 0;
+    let webhookSuccess = 0;
+    let webhookFailed = 0;
+    const webhookErrors: string[] = [];
     for (const item of items || []) {
       const product = item.product;
       const pkg = item.package;
@@ -87,7 +98,7 @@ Deno.serve(async (req: Request) => {
           subtotal: item.subtotal || 0,
           profit,
           paymentMethod: paymentLabel(order.payment_method),
-          shippingMethod: order.shipping_method === "pickup" ? "Ambil di Toko" : "Dikirim",
+          shippingMethod: shippingLabel(order.shipping_method),
           pickupDate,
           pickupTime,
           status: order.order_status,
@@ -99,17 +110,39 @@ Deno.serve(async (req: Request) => {
         };
 
         if (SHEETS_WEBHOOK_URL) {
-          await fetch(SHEETS_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(rowData),
-          }).catch(() => {});
+          try {
+            const webhookRes = await fetch(SHEETS_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(rowData),
+            });
+            const webhookText = await webhookRes.text();
+            if (webhookRes.ok) {
+              webhookSuccess += 1;
+            } else {
+              webhookFailed += 1;
+              webhookErrors.push(`${sheet}: HTTP ${webhookRes.status} ${webhookText.slice(0, 200)}`);
+            }
+          } catch (err) {
+            webhookFailed += 1;
+            webhookErrors.push(`${sheet}: ${err instanceof Error ? err.message : String(err)}`);
+          }
         }
         sentRows += 1;
       }
     }
 
-    return new Response(JSON.stringify({ success: true, instagram, pickupDate, pickupTime, sentRows }), {
+    return new Response(JSON.stringify({
+      success: true,
+      instagram,
+      pickupDate,
+      pickupTime,
+      sentRows,
+      webhookConfigured: Boolean(SHEETS_WEBHOOK_URL),
+      webhookSuccess,
+      webhookFailed,
+      webhookErrors: webhookErrors.slice(0, 5),
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

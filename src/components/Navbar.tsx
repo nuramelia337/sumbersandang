@@ -27,6 +27,7 @@ export default function Navbar({ onNavigate, onSearch, currentPage }: Props) {
   const links = [
     { label: 'Beranda', page: 'home' },
     { label: 'Koleksi', page: 'shop' },
+    { label: 'Rules', page: 'rules' },
     { label: 'Tentang', page: 'about' },
     { label: 'Kontak', page: 'contact' },
   ];

@@ -120,7 +120,9 @@ export interface Customer {
   updated_at: string;
 }
 
-export type PaymentMethod = 'cash' | 'transfer' | 'qris' | 'cod' | 'saldo';
+export type PaymentMethod = 'bca' | 'dana' | 'shopeepay';
+export type ShippingMethod = 'pickup' | 'jnt' | 'spx' | 'maxim';
+export type KeepStatus = 'active' | 'expired' | 'confirmed' | 'released';
 
 export interface Order {
   id: string;
@@ -132,7 +134,7 @@ export interface Order {
   customer_address?: string;
   customer_city?: string;
   customer_province?: string;
-  shipping_method: string;
+  shipping_method: ShippingMethod;
   shipping_cost: number;
   subtotal: number;
   discount_amount: number;
@@ -147,6 +149,10 @@ export interface Order {
   estimated_delivery?: string;
   shipped_at?: string;
   completed_at?: string;
+  keep_expires_at?: string;
+  payment_confirmed_at?: string;
+  keep_status?: KeepStatus;
+  shipping_note?: string;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];
@@ -256,6 +262,26 @@ export interface ActivityLog {
   metadata: Record<string, unknown>;
   created_at: string;
   admin_profiles?: Pick<AdminProfile, 'email' | 'full_name'> | null;
+}
+
+export interface FinanceSetting {
+  id: string;
+  key: string;
+  value: number;
+  updated_at: string;
+}
+
+export interface CashLedger {
+  id: string;
+  type: 'initial' | 'in' | 'out' | 'operational';
+  amount: number;
+  description: string;
+  payment_method?: PaymentMethod | null;
+  reference_type?: string | null;
+  reference_id?: string | null;
+  transaction_date: string;
+  created_at: string;
+  created_by?: string | null;
 }
 
 export interface ProductCartItem {

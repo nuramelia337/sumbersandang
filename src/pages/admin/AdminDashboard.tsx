@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate, BRAND } from '../../lib/constants';
 import { TrendingUp, Package, ShoppingCart, Users, DollarSign, AlertTriangle, Clock, CheckCircle, Warehouse, TrendingDown, Wallet } from 'lucide-react';
+import { loadFinanceSummary, PAYMENT_LABELS } from '../../lib/business';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -23,9 +24,10 @@ export default function AdminDashboard() {
     totalStock: 0,
     readyProducts: 0,
     soldProducts: 0,
-    cashRevenue: 0,
-    saldoRevenue: 0,
-    transferRevenue: 0,
+    bcaRevenue: 0,
+    danaRevenue: 0,
+    shopeepayRevenue: 0,
+    totalBalance: 0,
     todaySold: 0,
     packagesSold: 0,
   });
@@ -33,21 +35,30 @@ export default function AdminDashboard() {
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [latestProducts, setLatestProducts] = useState<any[]>([]);
+  const [salesTrend, setSalesTrend] = useState<Array<{ date: string; total: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
+      try {
+        await supabase.rpc('release_expired_keeps');
+      } catch {
+        // Non-blocking; dashboard can still load if the migration is not applied yet.
+      }
+
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-      const [orders, products, customers, orderItems] = await Promise.all([
+      const [orders, products, customers, orderItems, financeSummary, lowStockNotifications] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('products').select('*'),
         supabase.from('customers').select('id'),
         supabase.from('order_items').select('order_id, product_name, quantity, unit_price, purchase_price, item_type, created_at'),
+        loadFinanceSummary().catch(() => ({ totalBalance: 0 })),
+        supabase.from('notifications').select('reference_id').eq('type', 'low_stock'),
       ]);
 
       const allOrders = orders.data || [];
@@ -62,9 +73,9 @@ export default function AdminDashboard() {
       const monthRev = validOrders.filter((o) => o.created_at >= monthStart).reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const yearRev = validOrders.filter((o) => o.created_at >= yearStart).reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
-      const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-      const saldoRevenue = validOrders.filter((o) => o.payment_method === 'saldo').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-      const transferRevenue = validOrders.filter((o) => o.payment_method === 'transfer').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const bcaRevenue = validOrders.filter((o) => o.payment_method === 'bca').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const danaRevenue = validOrders.filter((o) => o.payment_method === 'dana').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const shopeepayRevenue = validOrders.filter((o) => o.payment_method === 'shopeepay').reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
       const totalCogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
       const grossProfit = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) - totalCogs;
@@ -85,6 +96,30 @@ export default function AdminDashboard() {
       const totalStock = allProducts.reduce((s, p) => s + p.stock, 0);
       const readyProducts = allProducts.filter((p) => (p.availability_status || (p.stock > 0 ? 'ready' : 'sold')) === 'ready').length;
       const soldProducts = allProducts.filter((p) => (p.availability_status || (p.stock > 0 ? 'ready' : 'sold')) === 'sold').length;
+      const lowProducts = allProducts.filter((p) => Number(p.stock || 0) <= Number(p.min_stock || 1));
+      const existingLowRefs = new Set((lowStockNotifications.data || []).map((n: any) => n.reference_id));
+      const newLowNotifications = lowProducts
+        .filter((p) => !existingLowRefs.has(p.id))
+        .map((p) => ({
+          type: 'low_stock',
+          title: p.stock === 0 ? 'Stok Habis' : 'Stok Menipis',
+          message: `${p.name} (${p.product_code}) tersisa ${p.stock} pcs`,
+          reference_type: 'product',
+          reference_id: p.id,
+        }));
+      if (newLowNotifications.length > 0) {
+        await supabase.from('notifications').insert(newLowNotifications);
+      }
+
+      const last7Days = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(now);
+        date.setDate(now.getDate() - (6 - index));
+        const key = date.toISOString().slice(0, 10);
+        const total = validOrders
+          .filter((o) => String(o.created_at).slice(0, 10) === key)
+          .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+        return { date: key, total };
+      });
 
       setStats({
         todayRevenue: todayRev,
@@ -105,23 +140,26 @@ export default function AdminDashboard() {
         totalStock,
         readyProducts,
         soldProducts,
-        cashRevenue,
-        saldoRevenue,
-        transferRevenue,
+        bcaRevenue,
+        danaRevenue,
+        shopeepayRevenue,
+        totalBalance: Number((financeSummary as any).totalBalance || 0),
         todaySold,
         packagesSold,
       });
 
       setRecentOrders(allOrders.slice(0, 5));
-      setLowStockProducts(allProducts.filter((p) => p.stock <= p.min_stock).slice(0, 5));
+      setLowStockProducts(lowProducts.slice(0, 5));
       setTopProducts(top);
       setLatestProducts(allProducts.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 5));
+      setSalesTrend(last7Days);
       setLoading(false);
     })();
   }, []);
 
   const cards = [
     { label: 'Total Uang Masuk', value: formatIDR(stats.totalRevenue), icon: DollarSign, color: 'bg-success-500' },
+    { label: 'Total Saldo', value: formatIDR(stats.totalBalance), icon: Wallet, color: 'bg-primary-700' },
     { label: 'Barang Terjual', value: `${stats.totalSold} pcs`, icon: CheckCircle, color: 'bg-primary-500' },
     { label: 'Terjual Hari Ini', value: `${stats.todaySold} pcs`, icon: CheckCircle, color: 'bg-accent-500' },
     { label: 'Total Stok Barang', value: `${stats.totalStock} pcs`, icon: Warehouse, color: 'bg-secondary-500' },
@@ -207,24 +245,46 @@ export default function AdminDashboard() {
           <div className="rounded-xl bg-success-50 p-4 dark:bg-success-900/20">
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-success-600" />
-              <span className="text-sm font-semibold text-success-700 dark:text-success-400">Cash</span>
+              <span className="text-sm font-semibold text-success-700 dark:text-success-400">{PAYMENT_LABELS.bca}</span>
             </div>
-            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.cashRevenue)}</p>
+            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.bcaRevenue)}</p>
           </div>
           <div className="rounded-xl bg-primary-50 p-4 dark:bg-primary-900/20">
             <div className="flex items-center gap-2">
               <Wallet className="h-5 w-5 text-primary-600" />
-              <span className="text-sm font-semibold text-primary-700 dark:text-primary-400">Saldo</span>
+              <span className="text-sm font-semibold text-primary-700 dark:text-primary-400">{PAYMENT_LABELS.dana}</span>
             </div>
-            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.saldoRevenue)}</p>
+            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.danaRevenue)}</p>
           </div>
           <div className="rounded-xl bg-secondary-50 p-4 dark:bg-secondary-900/20">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-secondary-600" />
-              <span className="text-sm font-semibold text-secondary-700 dark:text-secondary-400">Transfer</span>
+              <span className="text-sm font-semibold text-secondary-700 dark:text-secondary-400">{PAYMENT_LABELS.shopeepay}</span>
             </div>
-            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.transferRevenue)}</p>
+            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.shopeepayRevenue)}</p>
           </div>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Grafik Penjualan 7 Hari</h2>
+        <div className="flex h-48 items-end gap-3">
+          {salesTrend.map((point) => {
+            const max = Math.max(...salesTrend.map((item) => item.total), 1);
+            const height = Math.max(8, (point.total / max) * 160);
+            return (
+              <div key={point.date} className="flex flex-1 flex-col items-center gap-2">
+                <div className="flex h-40 w-full items-end rounded-t-lg bg-neutral-100 dark:bg-neutral-800">
+                  <div
+                    className="w-full rounded-t-lg bg-primary-500 transition-all"
+                    style={{ height }}
+                    title={formatIDR(point.total)}
+                  />
+                </div>
+                <span className="text-[11px] text-neutral-500">{point.date.slice(5)}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -5,9 +5,9 @@ export const BRAND = {
   instagram: 'sumber.sandanggg',
   instagramUrl: 'https://www.instagram.com/sumber.sandanggg',
   mapsUrl: 'https://maps.app.goo.gl/zYVh2tbauVVR1EnP8',
-  whatsapp: '6281234567890',
-  whatsappDisplay: '+62 812-3456-7890',
-  email: 'sumber.sandang@gmail.com',
+  whatsapp: '6281521705794',
+  whatsappDisplay: '+62 815-2170-5794',
+  email: 'lia09.amel@gmail.com',
 };
 
 export const WHATSAPP_LINK = `https://wa.me/${BRAND.whatsapp}`;
@@ -72,9 +72,16 @@ export async function uploadProductImages(files: Blob[], productCode: string): P
 }
 
 export const PAYMENT_METHODS = [
-  { val: 'cash', label: 'Cash', desc: 'Bayar tunai di toko' },
-  { val: 'saldo', label: 'Saldo', desc: 'Bayar pakai saldo' },
-  { val: 'transfer', label: 'Transfer Bank', desc: 'BCA / Mandiri / BNI' },
+  { val: 'bca', label: 'BCA', desc: 'Transfer Bank BCA' },
+  { val: 'dana', label: 'DANA', desc: 'Transfer via DANA' },
+  { val: 'shopeepay', label: 'ShopeePay', desc: 'Transfer via ShopeePay' },
+];
+
+export const SHIPPING_METHODS = [
+  { val: 'pickup', label: 'Ambil Sendiri', desc: 'Ambil di toko sesuai jam' },
+  { val: 'jnt', label: 'JNT', desc: 'Kirim via JNT' },
+  { val: 'spx', label: 'SPX', desc: 'Kirim via Shopee Xpress' },
+  { val: 'maxim', label: 'Maxim', desc: 'Kirim via Maxim' },
 ];
 
 export function paymentLabel(method: string): string {

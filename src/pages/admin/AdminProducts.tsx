@@ -31,7 +31,6 @@ const emptyForm = {
   selling_price: 0,
   stock: 1,
   min_stock: 1,
-  tags: [] as string[],
   is_featured: false,
   status: 'active',
   availability_status: 'ready' as ProductAvailabilityStatus,
@@ -46,6 +45,8 @@ export default function AdminProducts() {
   const [search, setSearch] = useState('');
   const [locationFilter, setLocationFilter] = useState<'all' | StorageLocation>('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sizeFilter, setSizeFilter] = useState('all');
+  const [colorFilter, setColorFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [tab, setTab] = useState<Tab>('all');
@@ -87,6 +88,8 @@ export default function AdminProducts() {
     const matchTab = tab === 'all' || availability === tab;
     const matchLocation = locationFilter === 'all' || p.storage_location === locationFilter;
     const matchCategory = categoryFilter === 'all' || p.category_id === categoryFilter;
+    const matchSize = sizeFilter === 'all' || (p.size || '').toLowerCase() === sizeFilter;
+    const matchColor = colorFilter === 'all' || (p.color || '').toLowerCase() === colorFilter;
     const q = search.toLowerCase();
     const matchSearch = !q ||
       p.name.toLowerCase().includes(q) ||
@@ -94,8 +97,11 @@ export default function AdminProducts() {
       (p.barcode || '').toLowerCase().includes(q) ||
       (p.brand || '').toLowerCase().includes(q) ||
       (p.internal_notes || '').toLowerCase().includes(q);
-    return matchTab && matchLocation && matchCategory && matchSearch;
+    return matchTab && matchLocation && matchCategory && matchSize && matchColor && matchSearch;
   });
+
+  const sizes = Array.from(new Set(products.map((p) => (p.size || '').trim().toLowerCase()).filter(Boolean)));
+  const colors = Array.from(new Set(products.map((p) => (p.color || '').trim().toLowerCase()).filter(Boolean)));
 
   const openAdd = () => {
     setEditing(null);
@@ -105,13 +111,14 @@ export default function AdminProducts() {
   };
 
   const openEdit = (p: Product) => {
+    const availability = productAvailabilityFromStock(p);
     setEditing(p);
     setForm({
       ...emptyForm,
       ...p,
-      availability_status: productAvailabilityFromStock(p),
+      status: p.status === 'sold_out' && availability !== 'sold' ? 'active' : p.status,
+      availability_status: availability,
       storage_location: p.storage_location || 'gudang',
-      tags: p.tags || [],
       internal_notes: p.internal_notes || '',
     });
     setImageFiles([]);
@@ -135,6 +142,11 @@ export default function AdminProducts() {
     }
 
     const availability = form.availability_status as ProductAvailabilityStatus;
+    const websiteStatus = availability === 'sold'
+      ? 'sold_out'
+      : form.status === 'inactive'
+        ? 'inactive'
+        : 'active';
     const payload = {
       name: form.name,
       category_id: form.category_id || null,
@@ -147,12 +159,12 @@ export default function AdminProducts() {
       purchase_price: Number(form.purchase_price),
       selling_price: Number(form.selling_price),
       stock: availability === 'sold' ? 0 : Number(form.stock),
-      min_stock: Number(form.min_stock),
+      min_stock: 1,
       images,
       image_path: images[0] || editing?.image_path || null,
-      tags: Array.isArray(form.tags) ? form.tags : String(form.tags).split(',').map((t) => t.trim()).filter(Boolean),
+      tags: [],
       is_featured: Boolean(form.is_featured),
-      status: availability === 'sold' ? 'sold_out' : form.status,
+      status: websiteStatus,
       availability_status: availability,
       storage_location: form.storage_location,
       internal_notes: form.internal_notes || null,
@@ -209,6 +221,29 @@ export default function AdminProducts() {
     });
   };
 
+  const markSold = (product: Product) => {
+    showConfirm({
+      title: 'Tandai Sold?',
+      message: `${product.name} akan pindah ke Sold Out dan stok menjadi 0.`,
+      variant: 'warning',
+      confirmLabel: 'Tandai Sold',
+      onConfirm: async () => {
+        const { error } = await supabase.from('products').update({
+          availability_status: 'sold',
+          status: 'sold_out',
+          stock: 0,
+          updated_at: new Date().toISOString(),
+        }).eq('id', product.id);
+        if (error) {
+          showAlert({ title: 'Gagal mengubah status', message: error.message, variant: 'error' });
+          return;
+        }
+        await logActivity('product_marked_sold', 'product', product.id, `Marked sold: ${product.name}`);
+        loadData();
+      },
+    });
+  };
+
   const tabs: { val: Tab; label: string; count: number; icon: any }[] = [
     { val: 'all', label: 'Semua', count: counts.all, icon: Package },
     { val: 'ready', label: 'Ready', count: counts.ready, icon: CheckCircle },
@@ -249,6 +284,14 @@ export default function AdminProducts() {
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input-field max-w-[190px]">
           <option value="all">Semua Kategori</option>
           {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+        </select>
+        <select value={sizeFilter} onChange={(e) => setSizeFilter(e.target.value)} className="input-field max-w-[150px]">
+          <option value="all">Semua Ukuran</option>
+          {sizes.map((size) => <option key={size} value={size}>{size.toUpperCase()}</option>)}
+        </select>
+        <select value={colorFilter} onChange={(e) => setColorFilter(e.target.value)} className="input-field max-w-[150px]">
+          <option value="all">Semua Warna</option>
+          {colors.map((color) => <option key={color} value={color}>{color}</option>)}
         </select>
       </div>
 
@@ -295,6 +338,7 @@ export default function AdminProducts() {
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           <button onClick={() => openEdit(p)} className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600 dark:hover:bg-neutral-700"><Edit size={16} /></button>
+                          {availability !== 'sold' && <button onClick={() => markSold(p)} className="rounded-lg px-2 py-1 text-xs font-semibold text-success-700 hover:bg-success-50 dark:hover:bg-success-900/30">Sold</button>}
                           <button onClick={() => handleDelete(p)} className="rounded-lg p-2 text-neutral-500 hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-900/30"><Trash2 size={16} /></button>
                         </div>
                       </td>
@@ -317,14 +361,6 @@ export default function AdminProducts() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <ImageUpload multiple onImagesReady={setImageFiles} currentImages={editing?.images?.length ? editing.images : editing?.image_path ? [editing.image_path] : []} />
-
-              <div className="rounded-lg bg-primary-50 p-3 dark:bg-neutral-800">
-                <p className="text-xs text-neutral-500">Kode Produk & Barcode:</p>
-                <p className="mt-1 font-mono text-sm font-bold text-primary-600">
-                  {editing?.product_code || nextCode()}
-                  <span className="ml-3 text-neutral-400">{editing?.barcode || genBarcode(editing?.product_code || nextCode())}</span>
-                </p>
-              </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -392,10 +428,6 @@ export default function AdminProducts() {
                   <label className="mb-1 block text-sm font-medium">Stok</label>
                   <input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="input-field" />
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium">Min Stok</label>
-                  <input type="number" min={0} value={form.min_stock} onChange={(e) => setForm({ ...form, min_stock: e.target.value })} className="input-field" />
-                </div>
               </div>
 
               <div>
@@ -405,10 +437,6 @@ export default function AdminProducts() {
               <div>
                 <label className="mb-1 block text-sm font-medium">Catatan Internal Produk</label>
                 <textarea value={form.internal_notes || ''} onChange={(e) => setForm({ ...form, internal_notes: e.target.value })} className="input-field" rows={2} />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Tags (pisahkan dengan koma)</label>
-                <input type="text" value={Array.isArray(form.tags) ? form.tags.join(',') : form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) })} className="input-field" />
               </div>
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} className="h-4 w-4 rounded" />

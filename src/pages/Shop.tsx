@@ -38,7 +38,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   useEffect(() => {
     (async () => {
       setLoading(true);
-      let q = supabase.from('products').select('*').eq('status', 'active');
+      let q = supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').gt('stock', 0);
       if (selectedCat !== 'all') {
         const cat = categories.find((c) => c.slug === selectedCat);
         if (cat) q = q.eq('category_id', cat.id);

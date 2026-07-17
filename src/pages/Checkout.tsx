@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { ArrowLeft, CheckCircle, MessageCircle, AlertCircle, Instagram, Calendar, Clock } from 'lucide-react';
 import { getCartItemCode, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { supabase } from '../lib/supabase';
-import { formatIDR, genOrderNumber, genInvoiceNumber, waMessage } from '../lib/constants';
+import { formatIDR, genOrderNumber, genInvoiceNumber, waMessage, PAYMENT_METHODS, SHIPPING_METHODS } from '../lib/constants';
 import {
   computePackageCogs,
   packageImageUrl,
+  PAYMENT_LABELS,
   reserveOrderItems,
+  SHIPPING_LABELS,
 } from '../lib/business';
 import { getProductImageUrl } from '../lib/imageUtils';
 import { useAlert } from '../components/AlertProvider';
+import type { CartItem } from '../lib/types';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -26,6 +29,7 @@ export default function Checkout({ onNavigate }: Props) {
   const [successShipping, setSuccessShipping] = useState('');
   const [successPickupDate, setSuccessPickupDate] = useState('');
   const [successPickupTime, setSuccessPickupTime] = useState('');
+  const [successItems, setSuccessItems] = useState<CartItem[]>([]);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -34,7 +38,7 @@ export default function Checkout({ onNavigate }: Props) {
     city: '',
     province: '',
     shipping: 'pickup',
-    payment: 'transfer',
+    payment: 'bca',
     pickupDate: '',
     pickupTime: '',
     notes: '',
@@ -42,9 +46,10 @@ export default function Checkout({ onNavigate }: Props) {
   });
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState('');
+  const [agreedRules, setAgreedRules] = useState(false);
   const { showAlert } = useAlert();
 
-  const shippingCost = form.shipping === 'delivery' ? 20000 : 0;
+  const shippingCost = 0;
   const total = subtotal - discount + shippingCost;
 
   const today = new Date().toISOString().split('T')[0];
@@ -82,6 +87,14 @@ export default function Checkout({ onNavigate }: Props) {
       showAlert({
         title: 'Tanggal pengambilan belum lengkap',
         message: 'Mohon pilih tanggal dan jam pengambilan.',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (!agreedRules) {
+      showAlert({
+        title: 'Rules Belanja belum disetujui',
+        message: 'Centang persetujuan Rules Belanja sebelum checkout.',
         variant: 'warning',
       });
       return;
@@ -129,6 +142,9 @@ export default function Checkout({ onNavigate }: Props) {
       payment_method: form.payment,
       payment_status: 'pending',
       order_status: 'pending',
+      keep_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      keep_status: 'active',
+      shipping_note: form.shipping === 'pickup' ? `${form.pickupDate} ${form.pickupTime}` : null,
       coupon_code: form.coupon || null,
       notes: form.notes + (form.instagram ? ` | IG: ${form.instagram}` : '') + (form.pickupDate ? ` | Ambil: ${form.pickupDate} ${form.pickupTime}` : ''),
       estimated_delivery: estimatedDelivery,
@@ -177,6 +193,7 @@ export default function Checkout({ onNavigate }: Props) {
     });
     await supabase.from('order_items').insert(orderItems);
     await reserveOrderItems(order.id);
+    await supabase.rpc('upsert_order_cash_ledger', { p_order_id: order.id });
 
     if (customerId) {
       await supabase.rpc('increment_customer_stats', {
@@ -221,14 +238,20 @@ export default function Checkout({ onNavigate }: Props) {
     setSuccessShipping(form.shipping);
     setSuccessPickupDate(form.pickupDate);
     setSuccessPickupTime(form.pickupTime);
+    setSuccessItems(items);
     setStep('success');
     clearCart();
     setLoading(false);
   };
 
   if (step === 'success') {
-    const paymentText = successPayment === 'transfer' ? 'Transfer Bank' : successPayment === 'saldo' ? 'Saldo' : 'Cash';
-    const waMsg = `Halo Sumber Sandang! Saya baru saja membuat pesanan:\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\nNama: ${form.name}\nIG: ${form.instagram || '-'}\nTotal: ${formatIDR(successTotal)}\nMetode: ${paymentText}\n${successShipping === 'pickup' ? `Pengambilan: ${successPickupDate} ${successPickupTime}` : 'Dikirim'}\n\nMohon konfirmasi pembayaran. Terima kasih!`;
+    const paymentText = PAYMENT_LABELS[successPayment as keyof typeof PAYMENT_LABELS] || successPayment;
+    const shippingText = SHIPPING_LABELS[successShipping as keyof typeof SHIPPING_LABELS] || successShipping;
+    const productLines = successItems.map((item) => {
+      const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
+      return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Foto: ${image}`;
+    }).join('\n');
+    const waMsg = `==========================\n\nFORMAT ORDER\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\n\n==========================`;
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center justify-center px-4 py-16 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success-100 text-success-600">
@@ -391,8 +414,7 @@ export default function Checkout({ onNavigate }: Props) {
             </h3>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { val: 'pickup', label: 'Ambil di Toko', cost: 0 },
-                { val: 'delivery', label: 'Dikirim (JNE/J&T)', cost: 20000 },
+                ...SHIPPING_METHODS.map((s) => ({ ...s, cost: 0 })),
               ].map((s) => (
                 <button
                   key={s.val}
@@ -405,7 +427,7 @@ export default function Checkout({ onNavigate }: Props) {
                   }`}
                 >
                   <p className="text-sm font-semibold">{s.label}</p>
-                  <p className="text-xs text-neutral-500">{s.cost === 0 ? 'Gratis' : formatIDR(s.cost)}</p>
+                  <p className="text-xs text-neutral-500">{s.desc}</p>
                 </button>
               ))}
             </div>
@@ -446,9 +468,7 @@ export default function Checkout({ onNavigate }: Props) {
             </h3>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { val: 'cash', label: 'Cash', desc: 'Bayar tunai di toko' },
-                { val: 'saldo', label: 'Saldo', desc: 'Bayar pakai saldo' },
-                { val: 'transfer', label: 'Transfer Bank', desc: 'BCA / Mandiri / BNI' },
+                ...PAYMENT_METHODS,
               ].map((p) => (
                 <button
                   key={p.val}
@@ -476,6 +496,12 @@ export default function Checkout({ onNavigate }: Props) {
                 placeholder="Catatan untuk penjual..."
               />
             </div>
+            <label className="mt-5 flex items-start gap-3 rounded-xl bg-neutral-50 p-4 text-sm dark:bg-neutral-800">
+              <input type="checkbox" checked={agreedRules} onChange={(e) => setAgreedRules(e.target.checked)} className="mt-1 h-4 w-4" />
+              <span className="text-neutral-600 dark:text-neutral-300">
+                Saya sudah membaca dan menyetujui seluruh Rules Belanja, termasuk keep 1x24 jam, no return & no refund.
+              </span>
+            </label>
           </div>
 
           <button
@@ -550,7 +576,7 @@ export default function Checkout({ onNavigate }: Props) {
 
             <div className="mt-4 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-800">
               <p className="text-xs text-neutral-500">
-                Pembayaran {form.payment === 'transfer' ? 'transfer bank' : 'cash'}.
+                Pembayaran {PAYMENT_LABELS[form.payment as keyof typeof PAYMENT_LABELS]}.
                 {form.shipping === 'pickup' && form.pickupDate && ` Ambil tanggal ${form.pickupDate} ${form.pickupTime}.`}
               </p>
               <p className="mt-1 text-xs font-medium text-error-600">No retur, no refund.</p>
