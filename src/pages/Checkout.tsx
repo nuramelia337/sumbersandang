@@ -240,6 +240,14 @@ export default function Checkout({ onNavigate }: Props) {
     setSuccessPickupTime(form.pickupTime);
     setSuccessItems(items);
     setStep('success');
+    const autoProductLines = items.map((item) => {
+      const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
+      return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
+    }).join('\n');
+    const autoPaymentText = PAYMENT_LABELS[form.payment as keyof typeof PAYMENT_LABELS] || form.payment;
+    const autoShippingText = SHIPPING_LABELS[form.shipping as keyof typeof SHIPPING_LABELS] || form.shipping;
+    const autoWaMsg = `==========================\n\nFORMAT ORDER\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${autoProductLines}\n\nHarga: ${formatIDR(total)}\n\nMetode Pembayaran: ${autoPaymentText}\n\nMetode Pengiriman: ${autoShippingText}${form.shipping === 'pickup' ? ` (${form.pickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderNumber}\nNo. Invoice: ${invoiceNumber}\n\n==========================`;
+    window.open(waMessage(autoWaMsg), '_blank', 'noopener,noreferrer');
     clearCart();
     setLoading(false);
   };
@@ -249,7 +257,7 @@ export default function Checkout({ onNavigate }: Props) {
     const shippingText = SHIPPING_LABELS[successShipping as keyof typeof SHIPPING_LABELS] || successShipping;
     const productLines = successItems.map((item) => {
       const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
-      return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Foto: ${image}`;
+      return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
     }).join('\n');
     const waMsg = `==========================\n\nFORMAT ORDER\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\n\n==========================`;
     return (

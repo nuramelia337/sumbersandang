@@ -1,6 +1,20 @@
 export type ProductAvailabilityStatus = 'ready' | 'reserved' | 'sold';
 export type LegacyProductStatus = 'active' | 'inactive' | 'sold_out';
-export type StorageLocation = 'rak_a' | 'rak_b' | 'gudang' | 'etalase';
+export type StorageLocation =
+  | 'keranjang_1'
+  | 'keranjang_2'
+  | 'keranjang_3'
+  | 'keranjang_4'
+  | 'keranjang_5'
+  | 'keranjang_6'
+  | 'keranjang_7'
+  | 'keranjang_8'
+  | 'keranjang_9'
+  | 'keranjang_10'
+  | 'keranjang_11'
+  | 'keranjang_12'
+  | 'keranjang_13'
+  | 'keranjang_14';
 
 export interface Category {
   id: string;

@@ -23,16 +23,30 @@ export const AVAILABILITY_LABELS: Record<ProductAvailabilityStatus, string> = {
 };
 
 export const STORAGE_LOCATION_LABELS: Record<StorageLocation, string> = {
-  rak_a: 'Rak A',
-  rak_b: 'Rak B',
-  gudang: 'Gudang',
-  etalase: 'Etalase',
+  keranjang_1: 'Keranjang 1',
+  keranjang_2: 'Keranjang 2',
+  keranjang_3: 'Keranjang 3',
+  keranjang_4: 'Keranjang 4',
+  keranjang_5: 'Keranjang 5',
+  keranjang_6: 'Keranjang 6',
+  keranjang_7: 'Keranjang 7',
+  keranjang_8: 'Keranjang 8',
+  keranjang_9: 'Keranjang 9',
+  keranjang_10: 'Keranjang 10',
+  keranjang_11: 'Keranjang 11',
+  keranjang_12: 'Keranjang 12',
+  keranjang_13: 'Keranjang 13',
+  keranjang_14: 'Keranjang 14',
 };
 
 export const STORAGE_LOCATIONS = Object.entries(STORAGE_LOCATION_LABELS).map(([value, label]) => ({
   value: value as StorageLocation,
   label,
 }));
+
+export function normalizeStorageLocation(value?: string | null): StorageLocation {
+  return value && value in STORAGE_LOCATION_LABELS ? value as StorageLocation : 'keranjang_1';
+}
 
 export const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const TARGET_IMAGE_UPLOAD_BYTES = 700 * 1024;

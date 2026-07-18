@@ -10,6 +10,7 @@ import {
   AVAILABILITY_LABELS,
   itemStatusColor,
   logActivity,
+  normalizeStorageLocation,
   productAvailabilityFromStock,
   STORAGE_LOCATIONS,
   STORAGE_LOCATION_LABELS,
@@ -34,7 +35,7 @@ const emptyForm = {
   is_featured: false,
   status: 'active',
   availability_status: 'ready' as ProductAvailabilityStatus,
-  storage_location: 'gudang' as StorageLocation,
+  storage_location: 'keranjang_1' as StorageLocation,
   internal_notes: '',
 };
 
@@ -118,7 +119,7 @@ export default function AdminProducts() {
       ...p,
       status: p.status === 'sold_out' && availability !== 'sold' ? 'active' : p.status,
       availability_status: availability,
-      storage_location: p.storage_location || 'gudang',
+      storage_location: normalizeStorageLocation(p.storage_location),
       internal_notes: p.internal_notes || '',
     });
     setImageFiles([]);
@@ -331,7 +332,7 @@ export default function AdminProducts() {
                       <td className="px-4 py-3 font-semibold text-primary-600">{formatIDR(p.selling_price)}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 text-xs text-neutral-500">
-                          <MapPin size={13} /> {p.storage_location ? STORAGE_LOCATION_LABELS[p.storage_location] : '-'}
+                          <MapPin size={13} /> {STORAGE_LOCATION_LABELS[normalizeStorageLocation(p.storage_location)]}
                         </span>
                       </td>
                       <td className="px-4 py-3"><span className={`badge ${itemStatusColor(availability)}`}>{AVAILABILITY_LABELS[availability]}</span></td>

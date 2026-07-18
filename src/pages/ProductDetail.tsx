@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ShoppingBag, Heart, Share2, Truck, Shield, MessageCircle } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Heart, Share2, Truck, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { formatIDR, waMessage } from '../lib/constants';
+import { formatIDR } from '../lib/constants';
 import { useCart } from '../lib/cart';
 import type { Product, Category } from '../lib/types';
 import { AVAILABILITY_LABELS, itemStatusColor, productAvailabilityFromStock, productIsAvailable, storageImageUrl } from '../lib/business';
@@ -46,12 +46,6 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
       addItem(product, qty);
       onNavigate('checkout');
     }
-  };
-
-  const handleWhatsApp = () => {
-    if (!product) return;
-    const msg = `Halo Sumber Sandang! Saya tertarik dengan produk:\n\n*${product.name}*\nKode: ${product.product_code}\nHarga: ${formatIDR(product.selling_price)}\n\nApakah masih tersedia?`;
-    window.open(waMessage(msg), '_blank');
   };
 
   if (loading) {
@@ -218,13 +212,6 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
               Beli Sekarang
             </button>
           </div>
-
-          <button
-            onClick={handleWhatsApp}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-success-500 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-success-600"
-          >
-            <MessageCircle size={18} /> Tanya via WhatsApp
-          </button>
 
           <div className="mt-3 flex gap-2">
             <button className="btn-ghost flex-1">
