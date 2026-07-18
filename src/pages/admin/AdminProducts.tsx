@@ -338,7 +338,7 @@ export default function AdminProducts() {
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           <button onClick={() => openEdit(p)} className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600 dark:hover:bg-neutral-700"><Edit size={16} /></button>
-                          {availability !== 'sold' && <button onClick={() => markSold(p)} className="rounded-lg px-2 py-1 text-xs font-semibold text-success-700 hover:bg-success-50 dark:hover:bg-success-900/30">Sold</button>}
+                          {availability !== 'sold' && <button onClick={() => markSold(p)} className="rounded-lg px-2 py-1 text-xs font-semibold text-success-700 hover:bg-success-50 dark:hover:bg-success-900/30">Tandai Sold</button>}
                           <button onClick={() => handleDelete(p)} className="rounded-lg p-2 text-neutral-500 hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-900/30"><Trash2 size={16} /></button>
                         </div>
                       </td>

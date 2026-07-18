@@ -20,8 +20,16 @@ interface Props {
   onLogout: () => void;
 }
 
+const ADMIN_PAGE_IDS = ['dashboard', 'products', 'packages', 'orders', 'inventory', 'finance', 'reports', 'website', 'admin'] as const;
+type AdminPage = typeof ADMIN_PAGE_IDS[number];
+
+function adminPageFromPath(pathname: string): AdminPage {
+  const section = pathname.replace(/\/+$/, '').split('/')[2];
+  return ADMIN_PAGE_IDS.includes(section as AdminPage) ? section as AdminPage : 'dashboard';
+}
+
 export default function AdminLayout({ onLogout }: Props) {
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState<AdminPage>(() => adminPageFromPath(window.location.pathname));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotif, setShowNotif] = useState(false);
@@ -29,6 +37,12 @@ export default function AdminLayout({ onLogout }: Props) {
 
   useEffect(() => {
     loadNotifications();
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => setPage(adminPageFromPath(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   const loadNotifications = async () => {
@@ -60,6 +74,16 @@ export default function AdminLayout({ onLogout }: Props) {
     onLogout();
   };
 
+  const navigateAdmin = (nextPage: AdminPage) => {
+    setPage(nextPage);
+    setSidebarOpen(false);
+    const nextPath = nextPage === 'dashboard' ? '/admin' : `/admin/${nextPage}`;
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-primary-50 dark:bg-secondary-950">
       {/* Sidebar */}
@@ -85,7 +109,7 @@ export default function AdminLayout({ onLogout }: Props) {
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => { setPage(item.id); setSidebarOpen(false); }}
+              onClick={() => navigateAdmin(item.id as AdminPage)}
               className={`mb-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                 page === item.id
                   ? 'bg-primary-600 text-white'

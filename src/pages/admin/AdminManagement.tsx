@@ -9,12 +9,17 @@ import { useAlert } from '../../components/AlertProvider';
 export default function AdminManagement() {
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
-  const [form, setForm] = useState({ id: '', email: '', full_name: '', role: 'admin' as 'admin' | 'owner' });
+  const [form, setForm] = useState({ email: '', password: '', full_name: '' });
+  const [adminSaving, setAdminSaving] = useState(false);
   const { showAlert, showConfirm } = useAlert();
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
+    loadData();
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -26,19 +31,20 @@ export default function AdminManagement() {
 
   const addAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from('admin_profiles').insert({
-      id: form.id,
-      email: form.email,
-      full_name: form.full_name || null,
-      role: form.role,
-      is_active: true,
+    setAdminSaving(true);
+    const { data, error } = await supabase.functions.invoke('create-admin', {
+      body: {
+        email: form.email,
+        password: form.password,
+        full_name: form.full_name,
+      },
     });
-    if (error) showAlert({ title: 'Gagal tambah admin', message: error.message, variant: 'error' });
+    if (error || data?.error) showAlert({ title: 'Gagal tambah admin', message: data?.error || error?.message || 'Gagal membuat akun admin.', variant: 'error' });
     else {
-      await logActivity('admin_profile_created', 'admin_profile', form.id, `Added admin profile: ${form.email}`);
-      setForm({ id: '', email: '', full_name: '', role: 'admin' });
+      setForm({ email: '', password: '', full_name: '' });
       loadData();
     }
+    setAdminSaving(false);
   };
 
   const toggleAdmin = async (admin: AdminProfile) => {
@@ -50,12 +56,17 @@ export default function AdminManagement() {
   const deleteAdmin = async (admin: AdminProfile) => {
     showConfirm({
       title: 'Hapus profil admin?',
-      message: `Profil ${admin.email} akan dihapus. Akun Supabase Auth tidak ikut dihapus.`,
+      message: `Profil ${admin.email} akan dihapus.`,
       variant: 'error',
       confirmLabel: 'Hapus',
       onConfirm: async () => {
-        await supabase.from('admin_profiles').delete().eq('id', admin.id);
-        await logActivity('admin_profile_deleted', 'admin_profile', admin.id, `Deleted admin profile: ${admin.email}`);
+        const { data, error } = await supabase.functions.invoke('delete-admin', {
+          body: { admin_id: admin.id },
+        });
+        if (error || data?.error) {
+          showAlert({ title: 'Gagal hapus admin', message: data?.error || error?.message || 'Gagal menghapus admin.', variant: 'error' });
+          return;
+        }
         loadData();
       },
     });
@@ -88,12 +99,8 @@ export default function AdminManagement() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card p-5">
           <h2 className="mb-2 font-serif text-lg font-bold">Tambah Profil Admin</h2>
-          <p className="mb-4 text-xs text-neutral-500">Buat user email/password di Supabase Auth terlebih dahulu, lalu masukkan UUID user di sini.</p>
+          <p className="mb-4 text-xs text-neutral-500">Buat akun admin langsung dari sini. Admin baru bisa login memakai email dan password yang dibuat.</p>
           <form onSubmit={addAdmin} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium">User ID Supabase Auth</label>
-              <input required value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} className="input-field" placeholder="UUID auth.users.id" />
-            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium">Email</label>
@@ -105,13 +112,12 @@ export default function AdminManagement() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Role</label>
-              <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as any })} className="input-field">
-                <option value="admin">Admin</option>
-                <option value="owner">Owner</option>
-              </select>
+              <label className="mb-1 block text-sm font-medium">Password Sementara</label>
+              <input required minLength={6} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input-field" placeholder="Minimal 6 karakter" />
             </div>
-            <button className="btn-primary"><Plus size={18} /> Tambah Admin</button>
+            <button disabled={adminSaving} className="btn-primary disabled:opacity-50">
+              {adminSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus size={18} />} Buat Admin
+            </button>
           </form>
         </div>
 
@@ -135,7 +141,9 @@ export default function AdminManagement() {
                   <button onClick={() => toggleAdmin(admin)} className={`badge ${admin.is_active ? 'bg-success-100 text-success-700' : 'bg-neutral-100 text-neutral-500'}`}>
                     {admin.is_active ? 'Aktif' : 'Nonaktif'}
                   </button>
-                  <button onClick={() => deleteAdmin(admin)} className="rounded-lg p-2 text-error-600 hover:bg-error-50"><Trash2 size={16} /></button>
+                  {admin.id !== currentUserId && admin.role !== 'owner' && (
+                    <button onClick={() => deleteAdmin(admin)} className="rounded-lg p-2 text-error-600 hover:bg-error-50"><Trash2 size={16} /></button>
+                  )}
                 </div>
               </div>
             ))}

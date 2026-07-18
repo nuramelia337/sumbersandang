@@ -203,7 +203,7 @@ export default function AdminPackages() {
                   <p className="text-xs text-neutral-500">{pkg.business_package_items?.length || 0} produk · HPP {formatIDR(computePackageCogs(pkg))}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button onClick={() => openEdit(pkg)} className="btn-secondary px-4 py-2"><Edit size={15} /> Edit</button>
-                    {pkg.availability_status !== 'sold' && <button onClick={() => markSold(pkg)} className="btn-secondary px-4 py-2 text-success-700"><CheckCircle size={15} /> Sold</button>}
+                    {pkg.availability_status !== 'sold' && <button onClick={() => markSold(pkg)} className="btn-secondary px-4 py-2 text-success-700"><CheckCircle size={15} /> Tandai Sold</button>}
                     <button onClick={() => deletePackage(pkg)} className="btn-secondary px-4 py-2 text-error-600"><Trash2 size={15} /> Hapus</button>
                   </div>
                 </div>

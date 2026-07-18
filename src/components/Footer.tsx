@@ -39,7 +39,6 @@ export default function Footer({ onNavigate }: Props) {
               <li><button onClick={() => onNavigate('rules')} className="hover:text-primary-600">Rules Belanja</button></li>
               <li><button onClick={() => onNavigate('about')} className="hover:text-primary-600">Tentang Kami</button></li>
               <li><button onClick={() => onNavigate('contact')} className="hover:text-primary-600">Kontak</button></li>
-              <li><button onClick={() => onNavigate('admin')} className="hover:text-primary-600">Admin Panel</button></li>
             </ul>
           </div>
 

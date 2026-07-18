@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { PromoBannerSetting, Testimonial } from '../../lib/types';
-import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadTestimonials, logActivity, savePromoBanner } from '../../lib/business';
+import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadTestimonials, logActivity, savePromoBanner, storageImageUrl, uploadImage } from '../../lib/business';
 import { useAlert } from '../../components/AlertProvider';
+import ImageUpload from '../../components/ImageUpload';
 
 const emptyTestimonial = {
   customer_name: '',
@@ -20,6 +21,7 @@ export default function AdminWebsite() {
   const [testimonialForm, setTestimonialForm] = useState(emptyTestimonial);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bannerImage, setBannerImage] = useState<Blob | null>(null);
   const { showAlert, showConfirm } = useAlert();
 
   useEffect(() => { loadData(); }, []);
@@ -34,9 +36,25 @@ export default function AdminWebsite() {
 
   const saveBanner = async () => {
     setSaving(true);
-    const { error } = await savePromoBanner(banner);
+    let nextBanner = banner;
+    try {
+      if (bannerImage) {
+        const path = await uploadImage(bannerImage, 'banners');
+        nextBanner = { ...banner, image_url: storageImageUrl(path) };
+      }
+    } catch (err) {
+      showAlert({ title: 'Upload banner gagal', message: err instanceof Error ? err.message : 'Gagal mengupload gambar banner.', variant: 'error' });
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await savePromoBanner(nextBanner);
     if (error) showAlert({ title: 'Gagal simpan banner', message: error.message, variant: 'error' });
-    else await logActivity('website_banner_updated', 'site_settings', undefined, 'Updated promo banner');
+    else {
+      setBanner(nextBanner);
+      setBannerImage(null);
+      await logActivity('website_banner_updated', 'site_settings', undefined, 'Updated promo banner');
+    }
     setSaving(false);
   };
 
@@ -107,8 +125,15 @@ export default function AdminWebsite() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">URL Gambar</label>
+            <label className="mb-1 block text-sm font-medium">URL Gambar Banner</label>
             <input value={banner.image_url} onChange={(e) => setBanner({ ...banner, image_url: e.target.value })} className="input-field" />
+          </div>
+          <div className="md:col-span-2">
+            <ImageUpload
+              label="Upload Gambar Banner"
+              onImageReady={setBannerImage}
+              currentImageUrl={banner.image_url}
+            />
           </div>
           <div className="md:col-span-2">
             <label className="mb-1 block text-sm font-medium">Subtitle</label>

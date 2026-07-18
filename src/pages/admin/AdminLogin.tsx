@@ -82,10 +82,6 @@ export default function AdminLogin({ onLogin }: Props) {
             </button>
           </form>
         </div>
-
-        <p className="mt-6 text-center text-xs text-neutral-400">
-          Admin pertama dibuat di Supabase Auth dan diberi row di tabel admin_profiles.
-        </p>
       </div>
     </div>
   );

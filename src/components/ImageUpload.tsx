@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback } from 'react';
 import { Camera, Upload, Image as ImageIcon, Wand2, X, Check, Loader2 } from 'lucide-react';
 import { removeBackground } from '../lib/imageUtils';
-import { optimizeImage, storageImageUrl } from '../lib/business';
+import { assertImageUploadFile, formatFileSize, MAX_IMAGE_UPLOAD_BYTES, optimizeImage, storageImageUrl, TARGET_IMAGE_UPLOAD_BYTES } from '../lib/business';
 import { useAlert } from './AlertProvider';
 
 interface ImageUploadProps {
@@ -40,10 +40,22 @@ export default function ImageUpload({
     const files = Array.from(list || []);
     if (files.length === 0) return;
     setProcessing(true);
-    const optimized = await Promise.all(files.map(async (file) => {
-      const blob = await optimizeImage(file);
-      return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
-    }));
+    let optimized: File[];
+    try {
+      files.forEach(assertImageUploadFile);
+      optimized = await Promise.all(files.map(async (file) => {
+        const blob = await optimizeImage(file);
+        return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+      }));
+    } catch (err) {
+      showAlert({
+        title: 'Foto tidak bisa dipakai',
+        message: err instanceof Error ? err.message : 'Gagal memproses foto.',
+        variant: 'error',
+      });
+      setProcessing(false);
+      return;
+    }
     setProcessing(false);
     if (multiple) {
       setSelectedFiles(optimized);
@@ -57,7 +69,8 @@ export default function ImageUpload({
     setPreviews([URL.createObjectURL(file)]);
     setBgRemoved(false);
     setShowOptions(false);
-  }, [multiple, onImagesReady]);
+    onImageReady?.(file);
+  }, [multiple, onImageReady, onImagesReady, showAlert]);
 
   const handleRemoveBg = useCallback(async () => {
     if (!originalFile && selectedFiles.length === 0) return;
@@ -173,7 +186,7 @@ export default function ImageUpload({
             <button type="button" onClick={() => setShowOptions(true)} className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-8 transition hover:border-primary-400 hover:bg-primary-50">
               <Upload className="h-10 w-10 text-neutral-400" />
               <span className="text-sm font-semibold text-neutral-700">{multiple ? 'Upload Banyak Foto' : 'Upload Foto Produk'}</span>
-              <span className="text-xs text-neutral-500">Ketuk untuk ambil foto atau pilih dari galeri HP</span>
+                <span className="text-xs text-neutral-500">Maks {formatFileSize(MAX_IMAGE_UPLOAD_BYTES)}; disimpan sekitar {formatFileSize(TARGET_IMAGE_UPLOAD_BYTES)}</span>
             </button>
           )}
         </div>

@@ -34,6 +34,9 @@ export const STORAGE_LOCATIONS = Object.entries(STORAGE_LOCATION_LABELS).map(([v
   label,
 }));
 
+export const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const TARGET_IMAGE_UPLOAD_BYTES = 700 * 1024;
+
 export const DEFAULT_PROMO_BANNER: PromoBannerSetting = {
   title: 'Paket usaha thrift siap jual',
   subtitle: 'Kurasi pakaian pilihan untuk reseller dan pemilik butik kecil.',
@@ -76,6 +79,20 @@ export async function uploadImage(file: Blob, folder: string): Promise<string> {
   return path;
 }
 
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function assertImageUploadFile(file: File) {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('File harus berupa gambar.');
+  }
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    throw new Error(`Ukuran gambar maksimal ${formatFileSize(MAX_IMAGE_UPLOAD_BYTES)}. File ini ${formatFileSize(file.size)}.`);
+  }
+}
+
 function loadImageElement(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -89,9 +106,15 @@ function loadImageElement(file: Blob): Promise<HTMLImageElement> {
   });
 }
 
-export async function optimizeImage(file: Blob, brightness = 1.08): Promise<Blob> {
+function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal memproses gambar'))), 'image/jpeg', quality);
+  });
+}
+
+export async function optimizeImage(file: Blob, brightness = 1.08, targetBytes = TARGET_IMAGE_UPLOAD_BYTES): Promise<Blob> {
   const img = await loadImageElement(file);
-  const maxSize = 1400;
+  const maxSize = 1200;
   const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(img.width * scale));
@@ -99,9 +122,25 @@ export async function optimizeImage(file: Blob, brightness = 1.08): Promise<Blob
   const ctx = canvas.getContext('2d')!;
   ctx.filter = `brightness(${brightness}) contrast(1.04) saturate(1.04)`;
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal memproses gambar'))), 'image/jpeg', 0.82);
-  });
+
+  const qualities = [0.78, 0.72, 0.66, 0.6];
+  let output = await canvasToJpeg(canvas, qualities[0]);
+  for (const quality of qualities.slice(1)) {
+    if (output.size <= targetBytes) break;
+    output = await canvasToJpeg(canvas, quality);
+  }
+
+  if (output.size > targetBytes && Math.max(canvas.width, canvas.height) > 960) {
+    const smaller = document.createElement('canvas');
+    const shrink = 960 / Math.max(canvas.width, canvas.height);
+    smaller.width = Math.max(1, Math.round(canvas.width * shrink));
+    smaller.height = Math.max(1, Math.round(canvas.height * shrink));
+    const smallerCtx = smaller.getContext('2d')!;
+    smallerCtx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
+    output = await canvasToJpeg(smaller, 0.68);
+  }
+
+  return output;
 }
 
 export async function logActivity(action: string, entityType?: string, entityId?: string, description?: string, metadata: Record<string, unknown> = {}) {

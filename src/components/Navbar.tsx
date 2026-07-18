@@ -158,15 +158,6 @@ export default function Navbar({ onNavigate, onSearch, currentPage }: Props) {
                   {l.label}
                 </button>
               ))}
-              <button
-                onClick={() => {
-                  onNavigate('admin');
-                  setMenuOpen(false);
-                }}
-                className="text-left text-sm font-medium py-2 text-neutral-500"
-              >
-                Admin Panel
-              </button>
             </div>
           </div>
         )}
