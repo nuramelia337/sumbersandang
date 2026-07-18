@@ -281,8 +281,9 @@ export async function loadFinanceSummary(dateFrom?: string, dateTo?: string) {
     if (dateTo && row.transaction_date > dateTo) return false;
     return true;
   });
+  const countedOrderStatuses = new Set(['confirmed', 'processing', 'packing', 'ready', 'shipped', 'completed']);
   const validOrders = (ordersRes.data || []).filter((o) => {
-    if (['cancelled', 'returned', 'refunded'].includes(o.order_status)) return false;
+    if (!countedOrderStatuses.has(o.order_status)) return false;
     if (dateFrom && String(o.created_at).slice(0, 10) < dateFrom) return false;
     if (dateTo && String(o.created_at).slice(0, 10) > dateTo) return false;
     return true;

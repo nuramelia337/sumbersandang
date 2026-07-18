@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { formatIDR, formatDateTime, waMessage } from '../../lib/constants';
+import { formatIDR, formatDateTime, waMessageTo } from '../../lib/constants';
 import { Search, MessageCircle, Eye, X } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/types';
 import { logActivity, PAYMENT_LABELS, SHIPPING_LABELS, transitionOrderInventory } from '../../lib/business';
@@ -60,6 +60,7 @@ export default function AdminOrders() {
       await supabase.from('orders').update({ completed_at: new Date().toISOString(), payment_status: 'paid' }).eq('id', id);
     }
     await transitionOrderInventory(id, status);
+    await supabase.rpc('upsert_order_cash_ledger', { p_order_id: id });
     await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
     loadOrders();
     if (selectedOrder?.id === id) {
@@ -81,7 +82,7 @@ export default function AdminOrders() {
     const paymentLabel = PAYMENT_LABELS[order.payment_method] || order.payment_method;
     const shippingLabel = SHIPPING_LABELS[order.shipping_method] || order.shipping_method;
     const msg = `Halo ${order.customer_name}!${ig}\n\nPesanan Anda *${order.order_number}* telah kami terima.\nTotal: ${formatIDR(order.total_amount)}\nMetode Pembayaran: ${paymentLabel}\nMetode Pengiriman: ${shippingLabel}${pickup}\n\nTerima kasih telah berbelanja di Sumber Sandang!`;
-    window.open(waMessage(msg), '_blank');
+    window.open(waMessageTo(order.customer_phone, msg), '_blank');
   };
 
   return (

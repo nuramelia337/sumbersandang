@@ -43,6 +43,17 @@ export function waMessage(msg: string): string {
   return `https://wa.me/${BRAND.whatsapp}?text=${encodeURIComponent(msg)}`;
 }
 
+export function normalizeWhatsAppNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('62')) return digits;
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  return digits;
+}
+
+export function waMessageTo(phone: string, msg: string): string {
+  return `https://wa.me/${normalizeWhatsAppNumber(phone)}?text=${encodeURIComponent(msg)}`;
+}
+
 export function formatDate(d: string | Date): string {
   return new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }

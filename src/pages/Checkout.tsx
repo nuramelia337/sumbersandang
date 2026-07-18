@@ -30,6 +30,7 @@ export default function Checkout({ onNavigate }: Props) {
   const [successPickupDate, setSuccessPickupDate] = useState('');
   const [successPickupTime, setSuccessPickupTime] = useState('');
   const [successItems, setSuccessItems] = useState<CartItem[]>([]);
+  const [showWaConfirm, setShowWaConfirm] = useState(false);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -99,6 +100,11 @@ export default function Checkout({ onNavigate }: Props) {
       });
       return;
     }
+    setShowWaConfirm(true);
+  };
+
+  const confirmWhatsApp = async () => {
+    if (items.length === 0) return;
     setLoading(true);
 
     const orderNumber = genOrderNumber();
@@ -193,7 +199,6 @@ export default function Checkout({ onNavigate }: Props) {
     });
     await supabase.from('order_items').insert(orderItems);
     await reserveOrderItems(order.id);
-    await supabase.rpc('upsert_order_cash_ledger', { p_order_id: order.id });
 
     if (customerId) {
       await supabase.rpc('increment_customer_stats', {
@@ -239,16 +244,17 @@ export default function Checkout({ onNavigate }: Props) {
     setSuccessPickupDate(form.pickupDate);
     setSuccessPickupTime(form.pickupTime);
     setSuccessItems(items);
-    setStep('success');
     const autoProductLines = items.map((item) => {
       const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
       return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
     }).join('\n');
     const autoPaymentText = PAYMENT_LABELS[form.payment as keyof typeof PAYMENT_LABELS] || form.payment;
     const autoShippingText = SHIPPING_LABELS[form.shipping as keyof typeof SHIPPING_LABELS] || form.shipping;
-    const autoWaMsg = `==========================\n\nFORMAT ORDER\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${autoProductLines}\n\nHarga: ${formatIDR(total)}\n\nMetode Pembayaran: ${autoPaymentText}\n\nMetode Pengiriman: ${autoShippingText}${form.shipping === 'pickup' ? ` (${form.pickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderNumber}\nNo. Invoice: ${invoiceNumber}\n\n==========================`;
+    const autoWaMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${autoProductLines}\n\nHarga: ${formatIDR(total)}\n\nMetode Pembayaran: ${autoPaymentText}\n\nMetode Pengiriman: ${autoShippingText}${form.shipping === 'pickup' ? ` (${form.pickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderNumber}\nNo. Invoice: ${invoiceNumber}\n\n==========================`;
     window.open(waMessage(autoWaMsg), '_blank', 'noopener,noreferrer');
+    setShowWaConfirm(false);
     clearCart();
+    setStep('success');
     setLoading(false);
   };
 
@@ -259,7 +265,7 @@ export default function Checkout({ onNavigate }: Props) {
       const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
       return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
     }).join('\n');
-    const waMsg = `==========================\n\nFORMAT ORDER\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\n\n==========================`;
+    const waMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\n\n==========================`;
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center justify-center px-4 py-16 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success-100 text-success-600">
@@ -295,6 +301,15 @@ export default function Checkout({ onNavigate }: Props) {
             <span className="text-lg font-bold text-primary-600">{formatIDR(successTotal)}</span>
           </div>
         </div>
+        <div className="mt-6 flex w-full items-start gap-3 rounded-2xl border-2 border-success-500 bg-success-50 p-4 text-left dark:border-success-700 dark:bg-success-900/20">
+          <MessageCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-success-700 dark:text-success-400" />
+          <div>
+            <p className="text-sm font-bold text-success-800 dark:text-success-300">Wajib konfirmasi via WhatsApp</p>
+            <p className="mt-1 text-sm text-success-700 dark:text-success-300">
+              Jika WhatsApp belum terbuka, tekan tombol di bawah agar pesanan masuk ke chat admin.
+            </p>
+          </div>
+        </div>
         <a
           href={waMessage(waMsg)}
           target="_blank"
@@ -323,6 +338,29 @@ export default function Checkout({ onNavigate }: Props) {
 
   return (
     <div className="animate-fade-in mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {showWaConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border-2 border-warning-500 bg-warning-50 p-6 text-center shadow-2xl dark:border-warning-700 dark:bg-warning-900/20">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-warning-200 text-warning-800 dark:bg-warning-800 dark:text-warning-100">
+              <AlertCircle size={30} />
+            </div>
+            <h2 className="mt-4 font-serif text-2xl font-bold text-warning-950 dark:text-warning-100">
+              Wajib Konfirmasi Pesanan
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-warning-900 dark:text-warning-100">
+              Tekan tombol di bawah untuk membuat pesanan dan mengirim format konfirmasi ke WhatsApp admin. Pesanan belum tercatat jika Anda membatalkan langkah ini.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={() => setShowWaConfirm(false)} disabled={loading} className="btn-secondary flex-1">
+                Batal
+              </button>
+              <button type="button" onClick={confirmWhatsApp} disabled={loading} className="btn-primary flex-1 disabled:opacity-50">
+                <MessageCircle size={18} /> {loading ? 'Memproses...' : 'Konfirmasi via WhatsApp'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <button
         onClick={() => onNavigate('shop')}
         className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-primary-600"
@@ -512,6 +550,12 @@ export default function Checkout({ onNavigate }: Props) {
             </label>
           </div>
 
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border-2 border-warning-500 bg-warning-50 p-4 dark:border-warning-700 dark:bg-warning-900/20">
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning-700 dark:text-warning-400" />
+            <p className="text-sm font-semibold text-warning-800 dark:text-warning-300">
+              Setelah checkout, wajib konfirmasi pesanan lewat WhatsApp agar admin dapat memproses order Anda.
+            </p>
+          </div>
           <button
             type="submit"
             disabled={loading}

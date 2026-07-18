@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { formatIDR, genBarcode, genProductCode, uploadProductImages } from '../../lib/constants';
+import { formatIDR, genBarcode, uploadProductImages } from '../../lib/constants';
 import { getProductImageUrl } from '../../lib/imageUtils';
 import type { Category, Product, ProductAvailabilityStatus, StorageLocation } from '../../lib/types';
 import ImageUpload from '../../components/ImageUpload';
@@ -21,6 +21,7 @@ type Tab = 'all' | ProductAvailabilityStatus;
 
 const emptyForm = {
   name: '',
+  product_code: '',
   category_id: '',
   brand: '',
   size: '',
@@ -67,14 +68,6 @@ export default function AdminProducts() {
     setProducts((prods.data || []).map((p) => ({ ...p, availability_status: productAvailabilityFromStock(p) })));
     setCategories(cats.data || []);
     setLoading(false);
-  };
-
-  const nextCode = () => {
-    const max = products.reduce((current, product) => {
-      const match = product.product_code?.match(/^SS(\d+)$/);
-      return match ? Math.max(current, Number(match[1])) : current;
-    }, 0);
-    return genProductCode('SS', max + 1);
   };
 
   const counts = {
@@ -130,7 +123,12 @@ export default function AdminProducts() {
     e.preventDefault();
     setSaving(true);
 
-    const productCode = editing?.product_code || nextCode();
+    const productCode = String(form.product_code || '').trim().toUpperCase();
+    if (!productCode) {
+      showAlert({ title: 'Kode produk belum diisi', message: 'Masukkan kode produk manual sebelum menyimpan.', variant: 'warning' });
+      setSaving(false);
+      return;
+    }
     let images = editing?.images || [];
     if (imageFiles.length > 0) {
       try {
@@ -170,7 +168,7 @@ export default function AdminProducts() {
       storage_location: form.storage_location,
       internal_notes: form.internal_notes || null,
       product_code: productCode,
-      barcode: editing?.barcode || genBarcode(productCode),
+      barcode: genBarcode(productCode),
       updated_at: new Date().toISOString(),
     };
 
@@ -364,6 +362,10 @@ export default function AdminProducts() {
               <ImageUpload multiple onImagesReady={setImageFiles} currentImages={editing?.images?.length ? editing.images : editing?.image_path ? [editing.image_path] : []} />
 
               <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Kode Produk</label>
+                  <input required type="text" value={form.product_code || ''} onChange={(e) => setForm({ ...form, product_code: e.target.value.toUpperCase() })} className="input-field" placeholder="Contoh: SS001" />
+                </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium">Nama Produk</label>
                   <input required type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" />

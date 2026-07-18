@@ -94,7 +94,13 @@ export async function removeBackground(file: File, tolerance = 38, feather = 2):
   const outCtx = outCanvas.getContext('2d')!;
   outCtx.fillStyle = '#ffffff';
   outCtx.fillRect(0, 0, w, h);
-  outCtx.putImageData(imageData, 0, 0);
+
+  const subjectCanvas = document.createElement('canvas');
+  subjectCanvas.width = w;
+  subjectCanvas.height = h;
+  const subjectCtx = subjectCanvas.getContext('2d')!;
+  subjectCtx.putImageData(imageData, 0, 0);
+  outCtx.drawImage(subjectCanvas, 0, 0);
 
   const maxDim = 1200;
   let finalCanvas = outCanvas;
