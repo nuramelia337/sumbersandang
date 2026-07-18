@@ -1,5 +1,5 @@
 import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
-import { getCartItemCode, getCartItemKey, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
+import { getCartItemCode, getCartItemKey, getCartItemMaxQty, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { formatIDR } from '../lib/constants';
 import { packageImageUrl } from '../lib/business';
 import { getProductImageUrl } from '../lib/imageUtils';
@@ -47,53 +47,61 @@ export default function CartDrawer({ onCheckout }: Props) {
             </div>
           ) : (
             <div className="space-y-4">
-              {items.map((item) => (
-                <div
-                  key={getCartItemKey(item)}
-                  className="flex gap-3 rounded-xl border border-primary-100 bg-primary-50/40 p-3 dark:border-secondary-800 dark:bg-secondary-950/40"
-                >
-                  <img
-                    src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
-                    alt={getCartItemName(item)}
-                    className="h-20 w-20 rounded-lg object-cover"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                      {getCartItemName(item)}
-                    </h3>
-                    <p className="text-xs text-neutral-500">
-                      {item.kind === 'product' ? item.product.brand || 'Thrift' : 'Paket Usaha'}
-                    </p>
-                    <p className="font-mono text-xs text-primary-500">{getCartItemCode(item)}</p>
-                    <p className="mt-1 text-sm font-bold text-primary-600">
-                      {formatIDR(getCartItemPrice(item))}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+              {items.map((item) => {
+                const key = getCartItemKey(item);
+                const maxQty = getCartItemMaxQty(item);
+                const isAtMax = item.quantity >= maxQty;
+
+                return (
+                  <div
+                    key={key}
+                    className="flex gap-3 rounded-xl border border-primary-100 bg-primary-50/40 p-3 dark:border-secondary-800 dark:bg-secondary-950/40"
+                  >
+                    <img
+                      src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
+                      alt={getCartItemName(item)}
+                      className="h-20 w-20 rounded-lg object-cover"
+                    />
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                        {getCartItemName(item)}
+                      </h3>
+                      <p className="text-xs text-neutral-500">
+                        {item.kind === 'product' ? item.product.brand || 'Thrift' : 'Paket Usaha'}
+                      </p>
+                      <p className="font-mono text-xs text-primary-500">{getCartItemCode(item)}</p>
+                      <p className="mt-1 text-sm font-bold text-primary-600">
+                        {formatIDR(getCartItemPrice(item))}
+                      </p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateQty(key, item.quantity - 1)}
+                            className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                          <button
+                            onClick={() => updateQty(key, item.quantity + 1)}
+                            disabled={isAtMax}
+                            title={item.kind === 'product' && isAtMax ? `Stok tersedia ${maxQty}` : 'Tambah quantity'}
+                            className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-800 dark:text-neutral-300"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
                         <button
-                          onClick={() => updateQty(getCartItemKey(item), item.quantity - 1)}
-                          className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
+                          onClick={() => removeItem(key)}
+                          className="text-error-500 hover:text-error-700"
                         >
-                          <Minus size={14} />
-                        </button>
-                        <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQty(getCartItemKey(item), item.quantity + 1)}
-                          className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
-                        >
-                          <Plus size={14} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
-                      <button
-                        onClick={() => removeItem(getCartItemKey(item))}
-                        className="text-error-500 hover:text-error-700"
-                      >
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

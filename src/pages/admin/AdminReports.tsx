@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate } from '../../lib/constants';
 import { Download, TrendingUp, DollarSign, Package, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { PAYMENT_LABELS } from '../../lib/business';
+import { orderCountsAsRevenue, PAYMENT_LABELS } from '../../lib/business';
 
 export default function AdminReports() {
   const [reportType, setReportType] = useState<'sales' | 'profit' | 'inventory' | 'customer'>('sales');
@@ -31,7 +31,7 @@ export default function AdminReports() {
       const { data: orders } = await supabase.from('orders').select('*').gte('created_at', startISO);
       const { data: items } = await supabase.from('order_items').select('*').gte('created_at', startISO);
 
-      const validOrders = (orders || []).filter((o) => !['cancelled', 'returned', 'refunded'].includes(o.order_status));
+      const validOrders = (orders || []).filter(orderCountsAsRevenue);
       const validOrderIds = new Set(validOrders.map((o) => o.id));
       const validItems = (items || []).filter((item) => validOrderIds.has(item.order_id));
       const revenue = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
@@ -65,16 +65,32 @@ export default function AdminReports() {
         payment: p.condition,
       })));
     } else {
-      const { data: customers } = await supabase.from('customers').select('*').order('total_spending', { ascending: false });
-      const custs = customers || [];
-      const totalRevenue = custs.reduce((s, c) => s + c.total_spending, 0);
-      setSummary({ revenue: totalRevenue, cogs: 0, profit: totalRevenue, orders: custs.length, items: custs.reduce((s, c) => s + c.total_orders, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0 });
+      const { data: customers } = await supabase.from('customers').select('*');
+      const { data: orders } = await supabase.from('orders').select('*').gte('created_at', startISO);
+      const validOrders = (orders || []).filter(orderCountsAsRevenue);
+      const customerStats = new Map<string, { orders: number; spending: number }>();
+      validOrders.forEach((order) => {
+        if (!order.customer_id) return;
+        const current = customerStats.get(order.customer_id) || { orders: 0, spending: 0 };
+        customerStats.set(order.customer_id, {
+          orders: current.orders + 1,
+          spending: current.spending + Number(order.total_amount || 0),
+        });
+      });
+      const custs = (customers || [])
+        .map((customer) => {
+          const stats = customerStats.get(customer.id) || { orders: 0, spending: 0 };
+          return { ...customer, counted_orders: stats.orders, counted_spending: stats.spending };
+        })
+        .sort((a, b) => b.counted_spending - a.counted_spending);
+      const totalRevenue = custs.reduce((s, c) => s + c.counted_spending, 0);
+      setSummary({ revenue: totalRevenue, cogs: 0, profit: totalRevenue, orders: custs.length, items: custs.reduce((s, c) => s + c.counted_orders, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0 });
       setData(custs.map((c) => ({
         date: c.created_at,
         order: c.phone,
         customer: c.name,
-        total: c.total_spending,
-        status: `${c.total_orders} orders`,
+        total: c.counted_spending,
+        status: `${c.counted_orders} orders`,
         payment: c.city || '-',
       })));
     }

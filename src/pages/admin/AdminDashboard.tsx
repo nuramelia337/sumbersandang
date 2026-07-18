@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate, BRAND } from '../../lib/constants';
 import { TrendingUp, Package, ShoppingCart, Users, DollarSign, AlertTriangle, Clock, CheckCircle, Warehouse, TrendingDown, Wallet } from 'lucide-react';
-import { loadFinanceSummary, PAYMENT_LABELS } from '../../lib/business';
+import { loadFinanceSummary, orderCountsAsRevenue, PAYMENT_LABELS } from '../../lib/business';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
       const allProducts = products.data || [];
       const allItems = orderItems.data || [];
 
-      const validOrders = allOrders.filter((o) => !['cancelled', 'returned', 'refunded'].includes(o.order_status));
+      const validOrders = allOrders.filter(orderCountsAsRevenue);
       const validOrderIds = new Set(validOrders.map((o) => o.id));
       const validItems = allItems.filter((i) => !i.order_id || validOrderIds.has(i.order_id));
       const todayRev = validOrders.filter((o) => o.created_at >= todayStart).reduce((s, o) => s + Number(o.total_amount || 0), 0);

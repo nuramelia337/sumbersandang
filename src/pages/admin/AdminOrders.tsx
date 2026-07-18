@@ -54,19 +54,31 @@ export default function AdminOrders() {
   });
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from('orders').update({ order_status: status, updated_at: new Date().toISOString() }).eq('id', id);
-    if (status === 'shipped') {
-      await supabase.from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', id);
-    }
-    if (status === 'completed') {
-      await supabase.from('orders').update({ completed_at: new Date().toISOString(), payment_status: 'paid' }).eq('id', id);
-    }
-    await transitionOrderInventory(id, status);
-    await supabase.rpc('upsert_order_cash_ledger', { p_order_id: id });
-    await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
-    loadOrders();
-    if (selectedOrder?.id === id) {
-      setSelectedOrder({ ...selectedOrder, order_status: status as any });
+    try {
+      const { error } = await supabase.from('orders').update({ order_status: status, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw new Error(error.message);
+      if (status === 'shipped') {
+        const { error: shippedError } = await supabase.from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', id);
+        if (shippedError) throw new Error(shippedError.message);
+      }
+      if (status === 'completed') {
+        const { error: completedError } = await supabase.from('orders').update({ completed_at: new Date().toISOString(), payment_status: 'paid' }).eq('id', id);
+        if (completedError) throw new Error(completedError.message);
+      }
+      await transitionOrderInventory(id, status);
+      const { error: ledgerError } = await supabase.rpc('upsert_order_cash_ledger', { p_order_id: id });
+      if (ledgerError) throw new Error(ledgerError.message);
+      await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
+      loadOrders();
+      if (selectedOrder?.id === id) {
+        setSelectedOrder({ ...selectedOrder, order_status: status as any });
+      }
+    } catch (err) {
+      showAlert({
+        title: 'Gagal mengubah status pesanan',
+        message: err instanceof Error ? err.message : 'Terjadi kesalahan saat mengubah status pesanan.',
+        variant: 'error',
+      });
     }
   };
 

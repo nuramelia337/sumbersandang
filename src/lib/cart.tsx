@@ -39,6 +39,14 @@ export function getCartItemPrice(item: CartItem): number {
   return item.kind === 'product' ? item.product.selling_price : item.package.price;
 }
 
+export function getCartItemMaxQty(item: CartItem): number {
+  return item.kind === 'product' ? Math.max(1, Number(item.product.stock || 0)) : Number.MAX_SAFE_INTEGER;
+}
+
+function clampCartQty(item: CartItem, qty: number): number {
+  return Math.min(getCartItemMaxQty(item), Math.max(1, qty));
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -48,8 +56,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const key = `product:${product.id}`;
       const ex = prev.find((item) => cartKey(item) === key);
-      if (ex) return prev.map((item) => (cartKey(item) === key ? { ...item, quantity: item.quantity + qty } : item));
-      return [...prev, { kind: 'product', product, quantity: qty }];
+      if (ex) return prev.map((item) => (cartKey(item) === key ? { ...item, quantity: clampCartQty(item, item.quantity + qty) } : item));
+      const newItem: CartItem = { kind: 'product', product, quantity: qty };
+      return [...prev, { ...newItem, quantity: clampCartQty(newItem, qty) }];
     });
   };
 
@@ -58,13 +67,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const key = `package:${pkg.id}`;
       const ex = prev.find((item) => cartKey(item) === key);
-      if (ex) return prev.map((item) => (cartKey(item) === key ? { ...item, quantity: item.quantity + qty } : item));
-      return [...prev, { kind: 'package', package: pkg, quantity: qty }];
+      if (ex) return prev.map((item) => (cartKey(item) === key ? { ...item, quantity: Math.max(1, item.quantity + qty) } : item));
+      return [...prev, { kind: 'package', package: pkg, quantity: Math.max(1, qty) }];
     });
   };
 
   const removeItem = (key: string) => setItems((prev) => prev.filter((item) => cartKey(item) !== key));
-  const updateQty = (key: string, qty: number) => setItems((prev) => prev.map((item) => (cartKey(item) === key ? { ...item, quantity: Math.max(1, qty) } : item)));
+  const updateQty = (key: string, qty: number) => setItems((prev) => prev.map((item) => (cartKey(item) === key ? { ...item, quantity: clampCartQty(item, qty) } : item)));
   const clear = () => setItems([]);
 
   const subtotal = items.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity, 0);

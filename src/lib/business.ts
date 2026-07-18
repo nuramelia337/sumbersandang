@@ -73,6 +73,19 @@ export const SHIPPING_LABELS: Record<ShippingMethod, string> = {
   maxim: 'Maxim',
 };
 
+export const REVENUE_ORDER_STATUSES: Order['order_status'][] = [
+  'confirmed',
+  'processing',
+  'packing',
+  'ready',
+  'shipped',
+  'completed',
+];
+
+export function orderCountsAsRevenue(order: Pick<Order, 'order_status'>): boolean {
+  return REVENUE_ORDER_STATUSES.includes(order.order_status);
+}
+
 export function storageImageUrl(path?: string | null): string {
   if (!path) return '';
   if (/^https?:\/\//.test(path)) return path;
@@ -223,14 +236,16 @@ export async function loadActivityLogs(): Promise<ActivityLog[]> {
 }
 
 export async function transitionOrderInventory(orderId: string, status: string) {
-  await supabase.rpc('transition_order_inventory', {
+  const { error } = await supabase.rpc('transition_order_inventory', {
     p_order_id: orderId,
     p_order_status: status,
   });
+  if (error) throw new Error(error.message);
 }
 
 export async function reserveOrderItems(orderId: string) {
-  await supabase.rpc('reserve_order_items', { p_order_id: orderId });
+  const { error } = await supabase.rpc('reserve_order_items', { p_order_id: orderId });
+  if (error) throw new Error(error.message);
 }
 
 export async function loadBackupData() {
@@ -281,20 +296,23 @@ export async function loadFinanceSummary(dateFrom?: string, dateTo?: string) {
     if (dateTo && row.transaction_date > dateTo) return false;
     return true;
   });
-  const countedOrderStatuses = new Set(['confirmed', 'processing', 'packing', 'ready', 'shipped', 'completed']);
   const validOrders = (ordersRes.data || []).filter((o) => {
-    if (!countedOrderStatuses.has(o.order_status)) return false;
+    if (!orderCountsAsRevenue(o)) return false;
     if (dateFrom && String(o.created_at).slice(0, 10) < dateFrom) return false;
     if (dateTo && String(o.created_at).slice(0, 10) > dateTo) return false;
     return true;
   });
   const validOrderIds = new Set(validOrders.map((o) => o.id));
+  const visibleLedger = ledger.filter((row) => {
+    if (row.reference_type !== 'order') return true;
+    return Boolean(row.reference_id && validOrderIds.has(row.reference_id));
+  });
   const items = (itemsRes.data || []).filter((i) => validOrderIds.has(i.order_id));
   const orderRevenue = validOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
   const cogs = items.reduce((sum, item) => sum + Number(item.purchase_price || 0) * Number(item.quantity || 0), 0);
-  const manualIn = ledger.filter((row) => row.type === 'in' && row.reference_type !== 'order').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const cashOut = ledger.filter((row) => row.type === 'out' || row.type === 'operational').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const operational = ledger.filter((row) => row.type === 'operational').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const manualIn = visibleLedger.filter((row) => row.type === 'in' && row.reference_type !== 'order').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const cashOut = visibleLedger.filter((row) => row.type === 'out' || row.type === 'operational').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const operational = visibleLedger.filter((row) => row.type === 'operational').reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const cashIn = orderRevenue + manualIn;
   return {
     openingBalance,
@@ -303,7 +321,7 @@ export async function loadFinanceSummary(dateFrom?: string, dateTo?: string) {
     totalBalance: openingBalance + cashIn - cashOut,
     salesProfit: orderRevenue - cogs,
     operationalExpenses: operational,
-    ledger,
+    ledger: visibleLedger,
   };
 }
 

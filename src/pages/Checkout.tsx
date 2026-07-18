@@ -107,6 +107,7 @@ export default function Checkout({ onNavigate }: Props) {
     if (items.length === 0) return;
     setLoading(true);
 
+    try {
     const orderNumber = genOrderNumber();
     const invoiceNumber = genInvoiceNumber();
 
@@ -157,7 +158,6 @@ export default function Checkout({ onNavigate }: Props) {
     }).select('id').single();
 
     if (error || !order) {
-      setLoading(false);
       showAlert({
         title: 'Gagal membuat pesanan',
         message: error?.message || 'Unknown error',
@@ -197,15 +197,9 @@ export default function Checkout({ onNavigate }: Props) {
         package_items_snapshot: [],
       };
     });
-    await supabase.from('order_items').insert(orderItems);
+    const { error: orderItemsError } = await supabase.from('order_items').insert(orderItems);
+    if (orderItemsError) throw new Error(orderItemsError.message);
     await reserveOrderItems(order.id);
-
-    if (customerId) {
-      await supabase.rpc('increment_customer_stats', {
-        p_customer_id: customerId,
-        p_amount: total,
-      });
-    }
 
     await supabase.from('notifications').insert({
       type: 'new_order',
@@ -255,7 +249,15 @@ export default function Checkout({ onNavigate }: Props) {
     setShowWaConfirm(false);
     clearCart();
     setStep('success');
+    } catch (err) {
+      showAlert({
+        title: 'Gagal membuat pesanan',
+        message: err instanceof Error ? err.message : 'Terjadi kesalahan saat membuat pesanan.',
+        variant: 'error',
+      });
+    } finally {
     setLoading(false);
+    }
   };
 
   if (step === 'success') {
