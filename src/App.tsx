@@ -91,7 +91,15 @@ function App() {
         setAuthChecked(true);
       });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session?.user) {
+        return;
+      }
+      if (event === 'SIGNED_OUT') {
+        setIsAdmin(false);
+        setAuthChecked(true);
+        return;
+      }
       setAuthChecked(false);
       window.setTimeout(() => {
         validateAdmin(session?.user?.id);

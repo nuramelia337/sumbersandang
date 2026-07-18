@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDateTime, waMessageTo } from '../../lib/constants';
-import { Search, MessageCircle, Eye, X } from 'lucide-react';
+import { Search, MessageCircle, Eye, X, Trash2 } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/types';
 import { logActivity, PAYMENT_LABELS, SHIPPING_LABELS, transitionOrderInventory } from '../../lib/business';
+import { useAlert } from '../../components/AlertProvider';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-warning-100 text-warning-700',
@@ -27,6 +28,7 @@ export default function AdminOrders() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const { showAlert, showConfirm } = useAlert();
 
   useEffect(() => {
     loadOrders();
@@ -83,6 +85,35 @@ export default function AdminOrders() {
     const shippingLabel = SHIPPING_LABELS[order.shipping_method] || order.shipping_method;
     const msg = `Halo ${order.customer_name}!${ig}\n\nPesanan Anda *${order.order_number}* telah kami terima.\nTotal: ${formatIDR(order.total_amount)}\nMetode Pembayaran: ${paymentLabel}\nMetode Pengiriman: ${shippingLabel}${pickup}\n\nTerima kasih telah berbelanja di Sumber Sandang!`;
     window.open(waMessageTo(order.customer_phone, msg), '_blank');
+  };
+
+  const deleteOrder = (order: Order) => {
+    showConfirm({
+      title: 'Hapus pesanan?',
+      message: `Pesanan ${order.order_number} akan dihapus. Jika pesanan ini sudah masuk saldo, Total Uang Masuk akan berkurang sebesar ${formatIDR(order.total_amount)}.`,
+      variant: 'error',
+      confirmLabel: 'Hapus Pesanan',
+      onConfirm: async () => {
+        try {
+          await transitionOrderInventory(order.id, 'cancelled');
+          await supabase.from('cash_ledger').delete().eq('reference_type', 'order').eq('reference_id', order.id).eq('type', 'in');
+          const { error } = await supabase.from('orders').delete().eq('id', order.id);
+          if (error) {
+            showAlert({ title: 'Gagal hapus pesanan', message: error.message, variant: 'error' });
+            return;
+          }
+          await logActivity('order_deleted', 'order', order.id, `Deleted order ${order.order_number}`);
+          if (selectedOrder?.id === order.id) setSelectedOrder(null);
+          loadOrders();
+        } catch (err) {
+          showAlert({
+            title: 'Gagal hapus pesanan',
+            message: err instanceof Error ? err.message : 'Terjadi kesalahan saat menghapus pesanan.',
+            variant: 'error',
+          });
+        }
+      },
+    });
   };
 
   return (
@@ -147,6 +178,9 @@ export default function AdminOrders() {
                         </button>
                         <button onClick={() => sendWhatsApp(o)} className="rounded-lg p-2 text-neutral-500 hover:bg-success-50 hover:text-success-600 dark:hover:bg-success-900/30" title="Kirim WhatsApp">
                           <MessageCircle size={16} />
+                        </button>
+                        <button onClick={() => deleteOrder(o)} className="rounded-lg p-2 text-neutral-500 hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-900/30" title="Hapus pesanan">
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -225,6 +259,14 @@ export default function AdminOrders() {
                 {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+
+            <button
+              type="button"
+              onClick={() => deleteOrder(selectedOrder)}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-error-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-error-700"
+            >
+              <Trash2 size={16} /> Hapus Pesanan
+            </button>
 
             {selectedOrder.notes && (
               <div className="mt-4 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-800">
