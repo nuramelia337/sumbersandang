@@ -10,17 +10,21 @@ interface Props {
 
 export default function CartDrawer({ onCheckout }: Props) {
   const { items, isOpen, setIsOpen, removeItem, updateQty, subtotal, totalItems } = useCart();
+  const handleCheckout = () => {
+    setIsOpen(false);
+    onCheckout();
+  };
 
   return (
     <>
       <div
-        className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${
           isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         onClick={() => setIsOpen(false)}
       />
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 dark:bg-secondary-900 ${
+        className={`fixed right-0 top-0 z-50 flex h-[100dvh] w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 dark:bg-secondary-900 ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -39,7 +43,7 @@ export default function CartDrawer({ onCheckout }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {items.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-neutral-400">
               <ShoppingBag size={48} strokeWidth={1} />
@@ -107,7 +111,7 @@ export default function CartDrawer({ onCheckout }: Props) {
         </div>
 
         {items.length > 0 && (
-          <div className="border-t border-primary-100 px-5 py-4 dark:border-secondary-800">
+          <div className="shrink-0 border-t border-primary-100 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] dark:border-secondary-800">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm text-neutral-600 dark:text-neutral-400">Subtotal</span>
               <span className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
@@ -115,7 +119,8 @@ export default function CartDrawer({ onCheckout }: Props) {
               </span>
             </div>
             <button
-              onClick={onCheckout}
+              type="button"
+              onClick={handleCheckout}
               className="btn-primary w-full"
             >
               Checkout Sekarang

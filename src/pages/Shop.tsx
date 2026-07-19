@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { BadgePercent, Gem, Shirt } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { BusinessPackage, Product, Category } from '../lib/types';
 import ProductCard from '../components/ProductCard';
 import PackageCard from '../components/PackageCard';
-import { loadPublicPackages } from '../lib/business';
+import { loadPublicPackages, PRODUCT_CATEGORY_COPY, PRODUCT_CATEGORY_SLUGS } from '../lib/business';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -20,7 +20,6 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
   const [selectedCat, setSelectedCat] = useState<string>(initialCategory || 'all');
   const [search, setSearch] = useState(initialSearch || '');
-  const [filterOpen, setFilterOpen] = useState(false);
 
   useEffect(() => {
     if (initialCategory) setSelectedCat(initialCategory);
@@ -30,7 +29,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   useEffect(() => {
     (async () => {
       const { data: cats } = await supabase.from('categories').select('*').order('sort_order');
-      setCategories(cats || []);
+      setCategories((cats || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
       setPackages(await loadPublicPackages(12));
     })();
   }, []);
@@ -59,8 +58,10 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   return (
     <div className="animate-fade-in mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Koleksi</h1>
-        <p className="mt-2 text-neutral-500">Jelajahi {products.length} item thrift premium</p>
+        <h1 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Koleksi Sumber Sandang</h1>
+        <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
+          Belanja lebih cepat lewat tiga kategori: Promo untuk harga spesial, Normal untuk pilihan harian, dan Premi untuk kurasi terbaik.
+        </p>
       </div>
 
       {/* Search bar */}
@@ -69,7 +70,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari produk, brand..."
+          placeholder="Cari nama produk, brand..."
           className="input-field max-w-xs"
         />
         <select
@@ -81,67 +82,55 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
           <option value="price-low">Harga Terendah</option>
           <option value="price-high">Harga Tertinggi</option>
         </select>
-        <button
-          onClick={() => setFilterOpen(!filterOpen)}
-          className="btn-secondary md:hidden"
+        <select
+          value={selectedCat}
+          onChange={(e) => setSelectedCat(e.target.value)}
+          className="input-field max-w-[190px] md:hidden"
         >
-          <SlidersHorizontal size={16} /> Filter
-        </button>
+          <option value="all">Semua Koleksi</option>
+          {categories.map((cat) => {
+            const copy = PRODUCT_CATEGORY_COPY[cat.slug as keyof typeof PRODUCT_CATEGORY_COPY];
+            return <option key={cat.id} value={cat.slug}>{copy?.title || cat.name}</option>;
+          })}
+        </select>
       </div>
 
       <div className="flex gap-8">
         {/* Sidebar */}
-        <aside
-          className={`${
-            filterOpen ? 'fixed inset-0 z-50 bg-black/40' : 'hidden'
-          } md:relative md:block md:bg-transparent md:z-auto`}
-          onClick={() => setFilterOpen(false)}
-        >
-          <div
-            className={`${
-              filterOpen ? 'fixed left-0 top-0 h-full w-72 bg-white p-6 shadow-2xl' : ''
-            } md:sticky md:top-24 md:w-56 md:bg-transparent md:p-0 md:shadow-none`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between md:hidden">
-              <h3 className="font-serif text-lg font-bold">Filter</h3>
-              <button onClick={() => setFilterOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
+        <aside className="hidden md:relative md:block md:bg-transparent">
+          <div className="md:sticky md:top-24 md:w-56">
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-900 dark:text-neutral-100">
               Kategori
             </h3>
             <div className="space-y-1">
               <button
-                onClick={() => {
-                  setSelectedCat('all');
-                  setFilterOpen(false);
-                }}
+                onClick={() => setSelectedCat('all')}
                 className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                   selectedCat === 'all'
                     ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-neutral-800 dark:text-primary-400'
                     : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
                 }`}
               >
-                Semua Produk
+                Semua Koleksi
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setSelectedCat(cat.slug);
-                    setFilterOpen(false);
-                  }}
-                  className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    selectedCat === cat.slug
-                      ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-neutral-800 dark:text-primary-400'
-                      : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const copy = PRODUCT_CATEGORY_COPY[cat.slug as keyof typeof PRODUCT_CATEGORY_COPY];
+                const Icon = cat.slug === 'promo' ? BadgePercent : cat.slug === 'premi' ? Gem : Shirt;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCat(cat.slug)}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                      selectedCat === cat.slug
+                        ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-neutral-800 dark:text-primary-400'
+                        : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                    }`}
+                  >
+                    <Icon size={17} className="shrink-0" />
+                    <span>{copy?.title || cat.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </aside>
@@ -150,7 +139,8 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
         <div className="flex-1">
           {packages.length > 0 && selectedCat === 'all' && !search && (
             <div className="mb-8">
-              <h2 className="mb-4 font-serif text-xl font-bold text-neutral-900 dark:text-neutral-50">Paket Usaha</h2>
+              <h2 className="mb-2 font-serif text-xl font-bold text-neutral-900 dark:text-neutral-50">Paket Usaha</h2>
+              <p className="mb-4 text-sm text-neutral-500">Bundle siap jual untuk reseller dan stok awal.</p>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {packages.map((pkg) => <PackageCard key={pkg.id} pkg={pkg} />)}
               </div>

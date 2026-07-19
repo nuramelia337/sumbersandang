@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Sparkles, Truck, Shield, Heart, Recycle } from 'lucide-react';
+import { ArrowRight, BadgePercent, Gem, Sparkles, Shirt, Truck, Shield, Heart, Recycle } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
 import type { BusinessPackage, Product, Category, PromoBannerSetting, Testimonial } from '../lib/types';
 import ProductCard from '../components/ProductCard';
 import PackageCard from '../components/PackageCard';
-import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadPublicPackages, loadTestimonials } from '../lib/business';
+import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadPublicPackages, loadTestimonials, PRODUCT_CATEGORY_COPY, PRODUCT_CATEGORY_SLUGS } from '../lib/business';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -32,7 +32,7 @@ export default function Home({ onNavigate }: Props) {
       ]);
       setFeatured(feat.data || []);
       setLatest(lat.data || []);
-      setCategories(cats.data || []);
+      setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
       setPackages(pkgs);
       setTestimonials(quotes);
       setPromo(banner);
@@ -57,15 +57,15 @@ export default function Home({ onNavigate }: Props) {
         <div className="relative mx-auto flex max-w-7xl flex-col justify-center px-4 py-24 sm:px-6 lg:min-h-[80vh] lg:px-8">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-              <Sparkles size={14} /> Premium Thrift Fashion
+              <Sparkles size={14} /> Sumber Sandang Preloved
             </span>
             <h1 className="mt-6 font-serif text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
               {promo.is_active ? promo.title : 'Good Stuff,'}<br />
-              <span className="text-accent-200">{promo.is_active ? 'Ready to Resell' : 'Second Chance,'}</span><br />
-              {promo.is_active ? 'from Sumber Sandang.' : 'Better You.'}
+              <span className="text-accent-200">{promo.is_active ? 'Siap Dipilih' : 'Second Chance,'}</span><br />
+              {promo.is_active ? 'Tanpa Ribet.' : 'Better You.'}
             </h1>
             <p className="mt-6 max-w-lg text-lg text-white/80">
-              {promo.is_active ? promo.subtitle : 'Temukan pakaian thrift berkualitas premium dengan harga terjangkau. Setiap potong punya cerita, setiap pembelian memberi keberlanjutan.'}
+              {promo.is_active ? promo.subtitle : 'Pilih koleksi Promo, Normal, atau Premi sesuai budget dan kebutuhan. Semua item dikurasi agar jelas kondisi, harga, dan siap checkout.'}
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <button
@@ -89,10 +89,10 @@ export default function Home({ onNavigate }: Props) {
       <section className="border-b border-primary-100 bg-white dark:border-secondary-800 dark:bg-secondary-900">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
           {[
-            { icon: Recycle, title: 'Sustainable Fashion', desc: 'Preloved premium items' },
-            { icon: Shield, title: 'Kualitas Terjamin', desc: 'Setiap item di-inspect' },
+            { icon: Recycle, title: 'Second Chance', desc: 'Preloved yang layak pakai' },
+            { icon: Shield, title: 'Kurasi Jelas', desc: 'Kondisi dan harga transparan' },
             { icon: Truck, title: 'Pengiriman Cepat', desc: 'Ke seluruh Indonesia' },
-            { icon: Heart, title: 'Harga Terjangkau', desc: 'Premium tanpa mahal' },
+            { icon: Heart, title: 'Pilihan Fleksibel', desc: 'Promo, normal, atau premi' },
           ].map((b, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-secondary-800 dark:text-primary-300">
@@ -110,24 +110,34 @@ export default function Home({ onNavigate }: Props) {
       {/* Categories */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
-          <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Kategori</h2>
-          <p className="mt-2 text-neutral-500">Temukan style favoritmu</p>
+          <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Pilih Jalur Belanja</h2>
+          <p className="mt-2 text-neutral-500">Tiga kategori sederhana agar pembeli cepat menemukan harga dan kualitas yang pas.</p>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {categories.map((cat) => (
+        <div className="grid gap-4 md:grid-cols-3">
+          {categories.map((cat) => {
+            const copy = PRODUCT_CATEGORY_COPY[cat.slug as keyof typeof PRODUCT_CATEGORY_COPY];
+            const Icon = cat.slug === 'promo' ? BadgePercent : cat.slug === 'premi' ? Gem : Shirt;
+            return (
             <button
               key={cat.id}
               onClick={() => onNavigate('shop', { category: cat.slug })}
-              className="group relative aspect-square overflow-hidden rounded-2xl border border-primary-100 bg-gradient-to-br from-white via-primary-50 to-accent-100 dark:border-secondary-800 dark:from-secondary-900 dark:via-secondary-950 dark:to-primary-950"
+              className="group relative overflow-hidden rounded-2xl border border-primary-100 bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary-300 dark:border-secondary-800 dark:bg-secondary-900"
             >
-              <div className="flex h-full flex-col items-center justify-center p-4">
-                <p className="font-serif text-lg font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-primary-600">
-                  {cat.name}
-                </p>
-                <p className="mt-1 text-xs text-neutral-500">{cat.description}</p>
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-secondary-800 dark:text-primary-300">
+                  <Icon size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-primary-600">{copy?.tone}</p>
+                  <p className="mt-1 font-serif text-xl font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-primary-600">
+                    {copy?.title || cat.name}
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">{copy?.description || cat.description}</p>
+                </div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -137,7 +147,7 @@ export default function Home({ onNavigate }: Props) {
           <div className="mb-8 flex items-end justify-between">
             <div>
               <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Koleksi Pilihan</h2>
-              <p className="mt-2 text-neutral-500">Temuan terbaik yang siap jadi favorit baru</p>
+              <p className="mt-2 text-neutral-500">Kurasi yang paling layak dilirik duluan</p>
             </div>
             <button
               onClick={() => onNavigate('shop')}
@@ -166,7 +176,7 @@ export default function Home({ onNavigate }: Props) {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
           <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Baru Tiba</h2>
-          <p className="mt-2 text-neutral-500">Stok terbaru setiap minggu</p>
+          <p className="mt-2 text-neutral-500">Item baru dari kategori Promo, Normal, dan Premi</p>
         </div>
         {loading ? (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -190,7 +200,7 @@ export default function Home({ onNavigate }: Props) {
             <div className="mb-8 flex items-end justify-between">
               <div>
                 <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Paket Usaha</h2>
-                <p className="mt-2 text-neutral-500">Bundle siap jual untuk reseller</p>
+                <p className="mt-2 text-neutral-500">Bundle siap jual untuk reseller yang ingin stok lebih cepat</p>
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -230,10 +240,10 @@ export default function Home({ onNavigate }: Props) {
           </div>
           <div className="relative">
             <h2 className="font-serif text-3xl font-bold text-white sm:text-4xl">
-              Mulai Perjalanan Thrift-mu
+              Temukan Kategori yang Pas
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-white/80">
-              Bergabung dengan ribuan pembeli cerdas yang memilih fashion berkelanjutan tanpa kompromi gaya.
+              Mulai dari Promo untuk hemat, Normal untuk daily wear, atau Premi untuk kurasi terbaik.
             </p>
             <button
               onClick={() => onNavigate('shop')}

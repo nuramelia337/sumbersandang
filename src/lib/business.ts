@@ -44,6 +44,26 @@ export const STORAGE_LOCATIONS = Object.entries(STORAGE_LOCATION_LABELS).map(([v
   label,
 }));
 
+export const PRODUCT_CATEGORY_SLUGS = ['promo', 'normal', 'premi'] as const;
+
+export const PRODUCT_CATEGORY_COPY: Record<typeof PRODUCT_CATEGORY_SLUGS[number], { title: string; description: string; tone: string }> = {
+  promo: {
+    title: 'Promo',
+    description: 'Harga spesial untuk temuan yang cepat bergerak.',
+    tone: 'Kesempatan hemat',
+  },
+  normal: {
+    title: 'Normal',
+    description: 'Koleksi harian yang rapi, wearable, dan mudah dipadukan.',
+    tone: 'Siap pakai',
+  },
+  premi: {
+    title: 'Premi',
+    description: 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.',
+    tone: 'Kurasi utama',
+  },
+};
+
 export function normalizeStorageLocation(value?: string | null): StorageLocation {
   return value && value in STORAGE_LOCATION_LABELS ? value as StorageLocation : 'keranjang_1';
 }
@@ -64,6 +84,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   bca: 'BCA',
   dana: 'DANA',
   shopeepay: 'ShopeePay',
+  cash: 'Cash',
 };
 
 export const SHIPPING_LABELS: Record<ShippingMethod, string> = {

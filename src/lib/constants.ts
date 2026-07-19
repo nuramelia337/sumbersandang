@@ -86,6 +86,7 @@ export const PAYMENT_METHODS = [
   { val: 'bca', label: 'BCA', desc: 'Transfer Bank BCA' },
   { val: 'dana', label: 'DANA', desc: 'Transfer via DANA' },
   { val: 'shopeepay', label: 'ShopeePay', desc: 'Transfer via ShopeePay' },
+  { val: 'cash', label: 'Cash', desc: 'Bayar tunai sesuai arahan admin' },
 ];
 
 export const SHIPPING_METHODS = [

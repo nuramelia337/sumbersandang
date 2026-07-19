@@ -134,7 +134,7 @@ export interface Customer {
   updated_at: string;
 }
 
-export type PaymentMethod = 'bca' | 'dana' | 'shopeepay';
+export type PaymentMethod = 'bca' | 'dana' | 'shopeepay' | 'cash';
 export type ShippingMethod = 'pickup' | 'jnt' | 'spx' | 'maxim';
 export type KeepStatus = 'active' | 'expired' | 'confirmed' | 'released';
 

@@ -27,6 +27,7 @@ export default function AdminDashboard() {
     bcaRevenue: 0,
     danaRevenue: 0,
     shopeepayRevenue: 0,
+    cashRevenue: 0,
     totalBalance: 0,
     todaySold: 0,
     packagesSold: 0,
@@ -76,6 +77,7 @@ export default function AdminDashboard() {
       const bcaRevenue = validOrders.filter((o) => o.payment_method === 'bca').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const danaRevenue = validOrders.filter((o) => o.payment_method === 'dana').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const shopeepayRevenue = validOrders.filter((o) => o.payment_method === 'shopeepay').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
       const totalCogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
       const grossProfit = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) - totalCogs;
@@ -143,6 +145,7 @@ export default function AdminDashboard() {
         bcaRevenue,
         danaRevenue,
         shopeepayRevenue,
+        cashRevenue,
         totalBalance: Number((financeSummary as any).totalBalance || 0),
         todaySold,
         packagesSold,
@@ -241,7 +244,7 @@ export default function AdminDashboard() {
       {/* Payment method breakdown */}
       <div className="card p-5">
         <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Pembayaran per Metode</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl bg-success-50 p-4 dark:bg-success-900/20">
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-success-600" />
@@ -262,6 +265,13 @@ export default function AdminDashboard() {
               <span className="text-sm font-semibold text-secondary-700 dark:text-secondary-400">{PAYMENT_LABELS.shopeepay}</span>
             </div>
             <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.shopeepayRevenue)}</p>
+          </div>
+          <div className="rounded-xl bg-accent-50 p-4 dark:bg-accent-900/20">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-accent-700" />
+              <span className="text-sm font-semibold text-accent-800 dark:text-accent-300">{PAYMENT_LABELS.cash}</span>
+            </div>
+            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.cashRevenue)}</p>
           </div>
         </div>
       </div>

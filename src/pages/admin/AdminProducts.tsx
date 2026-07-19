@@ -11,6 +11,7 @@ import {
   itemStatusColor,
   logActivity,
   normalizeStorageLocation,
+  PRODUCT_CATEGORY_SLUGS,
   productAvailabilityFromStock,
   STORAGE_LOCATIONS,
   STORAGE_LOCATION_LABELS,
@@ -66,7 +67,7 @@ export default function AdminProducts() {
       supabase.from('categories').select('*').order('sort_order'),
     ]);
     setProducts((prods.data || []).map((p) => ({ ...p, availability_status: productAvailabilityFromStock(p) })));
-    setCategories(cats.data || []);
+    setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
     setLoading(false);
   };
 
