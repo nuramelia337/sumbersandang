@@ -2,7 +2,7 @@
 # Cash payment and simplified product categories
 
 Adds Cash as an active payment method and simplifies public/admin product
-categories to Promo, Normal, and Premi.
+categories to Promo, Normal, and Premium.
 */
 
 DO $$
@@ -34,7 +34,7 @@ ALTER TABLE cash_ledger
 INSERT INTO categories (name, slug, description, sort_order) VALUES
   ('Promo', 'promo', 'Pilihan harga spesial dan temuan cepat habis.', 1),
   ('Normal', 'normal', 'Koleksi harian yang mudah dipadukan.', 2),
-  ('Premi', 'premi', 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.', 3)
+  ('Premium', 'premi', 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.', 3)
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,

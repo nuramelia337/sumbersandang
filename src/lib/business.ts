@@ -58,7 +58,7 @@ export const PRODUCT_CATEGORY_COPY: Record<typeof PRODUCT_CATEGORY_SLUGS[number]
     tone: 'Siap pakai',
   },
   premi: {
-    title: 'Premi',
+    title: 'Premium',
     description: 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.',
     tone: 'Kurasi utama',
   },

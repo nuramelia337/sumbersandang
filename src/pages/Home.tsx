@@ -65,7 +65,7 @@ export default function Home({ onNavigate }: Props) {
               {promo.is_active ? 'Tanpa Ribet.' : 'Better You.'}
             </h1>
             <p className="mt-6 max-w-lg text-lg text-white/80">
-              {promo.is_active ? promo.subtitle : 'Pilih koleksi Promo, Normal, atau Premi sesuai budget dan kebutuhan. Semua item dikurasi agar jelas kondisi, harga, dan siap checkout.'}
+              {promo.is_active ? promo.subtitle : 'Pilih koleksi Promo, Normal, atau Premium sesuai budget dan kebutuhan. Semua item dikurasi agar jelas kondisi, harga, dan siap checkout.'}
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <button
@@ -92,7 +92,7 @@ export default function Home({ onNavigate }: Props) {
             { icon: Recycle, title: 'Second Chance', desc: 'Preloved yang layak pakai' },
             { icon: Shield, title: 'Kurasi Jelas', desc: 'Kondisi dan harga transparan' },
             { icon: Truck, title: 'Pengiriman Cepat', desc: 'Ke seluruh Indonesia' },
-            { icon: Heart, title: 'Pilihan Fleksibel', desc: 'Promo, normal, atau premi' },
+            { icon: Heart, title: 'Pilihan Fleksibel', desc: 'Promo, normal, atau premium' },
           ].map((b, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-secondary-800 dark:text-primary-300">
@@ -176,7 +176,7 @@ export default function Home({ onNavigate }: Props) {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
           <h2 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Baru Tiba</h2>
-          <p className="mt-2 text-neutral-500">Item baru dari kategori Promo, Normal, dan Premi</p>
+          <p className="mt-2 text-neutral-500">Item baru dari kategori Promo, Normal, dan Premium</p>
         </div>
         {loading ? (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -243,7 +243,7 @@ export default function Home({ onNavigate }: Props) {
               Temukan Kategori yang Pas
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-white/80">
-              Mulai dari Promo untuk hemat, Normal untuk daily wear, atau Premi untuk kurasi terbaik.
+              Mulai dari Promo untuk hemat, Normal untuk daily wear, atau Premium untuk kurasi terbaik.
             </p>
             <button
               onClick={() => onNavigate('shop')}

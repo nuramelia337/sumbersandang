@@ -60,7 +60,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Koleksi Sumber Sandang</h1>
         <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-          Belanja lebih cepat lewat tiga kategori: Promo untuk harga spesial, Normal untuk pilihan harian, dan Premi untuk kurasi terbaik.
+          Belanja lebih cepat lewat tiga kategori: Promo untuk harga spesial, Normal untuk pilihan harian, dan Premium untuk kurasi terbaik.
         </p>
       </div>
 
