@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BadgePercent, Gem, Shirt } from 'lucide-react';
+import { BadgePercent, BriefcaseBusiness, Clock3, Gem, Shirt } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { BusinessPackage, Product, Category } from '../lib/types';
 import ProductCard from '../components/ProductCard';
@@ -37,6 +37,12 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   useEffect(() => {
     (async () => {
       setLoading(true);
+      if (selectedCat === 'packages') {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+
       let q = supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').gt('stock', 0);
       if (selectedCat !== 'all') {
         const cat = categories.find((c) => c.slug === selectedCat);
@@ -60,7 +66,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-50">Koleksi Sumber Sandang</h1>
         <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-          Belanja lebih cepat lewat tiga kategori: Promo untuk harga spesial, Normal untuk pilihan harian, dan Premium untuk kurasi terbaik.
+          Belanja lebih cepat lewat New Arrival, Promo, Normal, Premium, atau Paket Usaha untuk bundle reseller.
         </p>
       </div>
 
@@ -92,6 +98,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
             const copy = PRODUCT_CATEGORY_COPY[cat.slug as keyof typeof PRODUCT_CATEGORY_COPY];
             return <option key={cat.id} value={cat.slug}>{copy?.title || cat.name}</option>;
           })}
+          <option value="packages">Paket Usaha</option>
         </select>
       </div>
 
@@ -115,7 +122,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
               </button>
               {categories.map((cat) => {
                 const copy = PRODUCT_CATEGORY_COPY[cat.slug as keyof typeof PRODUCT_CATEGORY_COPY];
-                const Icon = cat.slug === 'promo' ? BadgePercent : cat.slug === 'premi' ? Gem : Shirt;
+                const Icon = cat.slug === 'new-arrival' ? Clock3 : cat.slug === 'promo' ? BadgePercent : cat.slug === 'premi' ? Gem : Shirt;
                 return (
                   <button
                     key={cat.id}
@@ -131,13 +138,24 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
                   </button>
                 );
               })}
+              <button
+                onClick={() => setSelectedCat('packages')}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                  selectedCat === 'packages'
+                    ? 'bg-primary-50 font-semibold text-primary-700 dark:bg-neutral-800 dark:text-primary-400'
+                    : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                }`}
+              >
+                <BriefcaseBusiness size={17} className="shrink-0" />
+                <span>Paket Usaha</span>
+              </button>
             </div>
           </div>
         </aside>
 
         {/* Products */}
         <div className="flex-1">
-          {packages.length > 0 && selectedCat === 'all' && !search && (
+          {packages.length > 0 && (selectedCat === 'packages' || (selectedCat === 'all' && !search)) && (
             <div className="mb-8">
               <h2 className="mb-2 font-serif text-xl font-bold text-neutral-900 dark:text-neutral-50">Paket Usaha</h2>
               <p className="mb-4 text-sm text-neutral-500">Bundle siap jual untuk reseller dan stok awal.</p>
@@ -146,7 +164,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
               </div>
             </div>
           )}
-          {loading ? (
+          {selectedCat === 'packages' ? null : loading ? (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               {[...Array(9)].map((_, i) => (
                 <div key={i} className="skeleton aspect-[3/4]" />

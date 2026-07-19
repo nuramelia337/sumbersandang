@@ -44,9 +44,14 @@ export const STORAGE_LOCATIONS = Object.entries(STORAGE_LOCATION_LABELS).map(([v
   label,
 }));
 
-export const PRODUCT_CATEGORY_SLUGS = ['promo', 'normal', 'premi'] as const;
+export const PRODUCT_CATEGORY_SLUGS = ['new-arrival', 'promo', 'normal', 'premi'] as const;
 
 export const PRODUCT_CATEGORY_COPY: Record<typeof PRODUCT_CATEGORY_SLUGS[number], { title: string; description: string; tone: string }> = {
+  'new-arrival': {
+    title: 'New Arrival',
+    description: 'Item terbaru yang baru masuk dan siap diperebutkan.',
+    tone: 'Baru masuk',
+  },
   promo: {
     title: 'Promo',
     description: 'Harga spesial untuk temuan yang cepat bergerak.',

@@ -2,7 +2,7 @@
 # Cash payment and simplified product categories
 
 Adds Cash as an active payment method and simplifies public/admin product
-categories to Promo, Normal, and Premium.
+categories to New Arrival, Promo, Normal, and Premium.
 */
 
 DO $$
@@ -32,9 +32,10 @@ ALTER TABLE cash_ledger
   CHECK (payment_method IN ('bca','dana','shopeepay','cash'));
 
 INSERT INTO categories (name, slug, description, sort_order) VALUES
-  ('Promo', 'promo', 'Pilihan harga spesial dan temuan cepat habis.', 1),
-  ('Normal', 'normal', 'Koleksi harian yang mudah dipadukan.', 2),
-  ('Premium', 'premi', 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.', 3)
+  ('New Arrival', 'new-arrival', 'Item terbaru yang baru masuk dan siap diperebutkan.', 1),
+  ('Promo', 'promo', 'Pilihan harga spesial dan temuan cepat habis.', 2),
+  ('Normal', 'normal', 'Koleksi harian yang mudah dipadukan.', 3),
+  ('Premium', 'premi', 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.', 4)
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
@@ -43,7 +44,7 @@ ON CONFLICT (slug) DO UPDATE SET
 UPDATE products
 SET category_id = (SELECT id FROM categories WHERE slug = 'normal')
 WHERE category_id IS NULL
-   OR category_id NOT IN (SELECT id FROM categories WHERE slug IN ('promo','normal','premi'));
+   OR category_id NOT IN (SELECT id FROM categories WHERE slug IN ('new-arrival','promo','normal','premi'));
 
 DELETE FROM categories
-WHERE slug NOT IN ('promo','normal','premi');
+WHERE slug NOT IN ('new-arrival','promo','normal','premi');
