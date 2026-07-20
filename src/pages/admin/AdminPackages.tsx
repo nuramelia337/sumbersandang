@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Boxes, CheckCircle, Edit, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
+import { Boxes, CheckCircle, ChevronDown, Edit, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR } from '../../lib/constants';
 import ImageUpload from '../../components/ImageUpload';
 import CurrencyInput from '../../components/CurrencyInput';
 import { useAlert } from '../../components/AlertProvider';
-import type { BusinessPackage, Product, ProductAvailabilityStatus } from '../../lib/types';
+import type { BusinessPackage, Category, Product, ProductAvailabilityStatus } from '../../lib/types';
 import {
   AVAILABILITY_LABELS,
   computePackageCogs,
@@ -13,6 +13,8 @@ import {
   loadPackages,
   logActivity,
   packageImageUrl,
+  PRODUCT_CATEGORY_COPY,
+  PRODUCT_CATEGORY_SLUGS,
   productAvailabilityFromStock,
   uploadImage,
 } from '../../lib/business';
@@ -31,12 +33,15 @@ const emptyForm = {
 export default function AdminPackages() {
   const [packages, setPackages] = useState<BusinessPackage[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<BusinessPackage | null>(null);
   const [form, setForm] = useState<any>(emptyForm);
   const [coverBlob, setCoverBlob] = useState<Blob | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const { showAlert, showConfirm } = useAlert();
 
@@ -44,12 +49,14 @@ export default function AdminPackages() {
 
   const loadData = async () => {
     setLoading(true);
-    const [pkgs, prods] = await Promise.all([
+    const [pkgs, prods, cats] = await Promise.all([
       loadPackages(true),
       supabase.from('products').select('*').neq('availability_status', 'sold').order('name'),
+      supabase.from('categories').select('*').order('sort_order'),
     ]);
     setPackages(pkgs);
     setProducts((prods.data || []).map((p) => ({ ...p, availability_status: productAvailabilityFromStock(p) })));
+    setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
     setLoading(false);
   };
 
@@ -62,6 +69,8 @@ export default function AdminPackages() {
     setEditing(null);
     setForm(emptyForm);
     setCoverBlob(null);
+    setProductSearch('');
+    setCollapsedGroups(new Set());
     setShowForm(true);
   };
 
@@ -74,6 +83,8 @@ export default function AdminPackages() {
       internal_notes: pkg.internal_notes || '',
     });
     setCoverBlob(null);
+    setProductSearch('');
+    setCollapsedGroups(new Set());
     setShowForm(true);
   };
 
@@ -81,6 +92,40 @@ export default function AdminPackages() {
     const ids = form.product_ids as string[];
     setForm({ ...form, product_ids: ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id] });
   };
+
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const productQuery = productSearch.trim().toLowerCase();
+  const selectedProductIds = new Set(form.product_ids as string[]);
+  const visibleProducts = products.filter((product) => {
+    if (!productQuery) return true;
+    return (
+      product.name.toLowerCase().includes(productQuery) ||
+      product.product_code.toLowerCase().includes(productQuery) ||
+      (product.brand || '').toLowerCase().includes(productQuery) ||
+      (product.size || '').toLowerCase().includes(productQuery) ||
+      (product.color || '').toLowerCase().includes(productQuery)
+    );
+  });
+  const categoryGroups = [
+    ...categories.map((category) => ({
+      id: category.id,
+      label: PRODUCT_CATEGORY_COPY[category.slug as keyof typeof PRODUCT_CATEGORY_COPY]?.title || category.name,
+      products: visibleProducts.filter((product) => product.category_id === category.id),
+    })),
+    {
+      id: 'uncategorized',
+      label: 'Tanpa Kategori',
+      products: visibleProducts.filter((product) => !product.category_id || !categories.some((category) => category.id === product.category_id)),
+    },
+  ].filter((group) => group.products.length > 0);
 
   const savePackage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,22 +306,72 @@ export default function AdminPackages() {
               </label>
 
               <div>
-                <div className="mb-2 flex items-center gap-2">
-                  <Boxes size={18} className="text-primary-600" />
-                  <label className="text-sm font-semibold">Produk dalam paket</label>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Boxes size={18} className="text-primary-600" />
+                    <label className="text-sm font-semibold">Produk dalam paket</label>
+                    <span className="badge bg-primary-50 text-primary-700">
+                      {selectedProductIds.size} dipilih
+                    </span>
+                  </div>
+                  <div className="relative w-full sm:w-72">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="input-field pl-9"
+                      placeholder="Cari nama, kode, brand..."
+                    />
+                  </div>
                 </div>
-                <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200 p-2 dark:border-neutral-700">
-                  {products.map((product) => {
-                    const checked = form.product_ids.includes(product.id);
-                    return (
-                      <label key={product.id} className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800">
-                        <input type="checkbox" checked={checked} onChange={() => toggleProduct(product.id)} className="h-4 w-4" />
-                        <span className="flex-1 text-sm">{product.name}</span>
-                        <span className="font-mono text-xs text-neutral-500">{product.product_code}</span>
-                        <span className={`badge ${itemStatusColor(product.availability_status)}`}>{AVAILABILITY_LABELS[product.availability_status]}</span>
-                      </label>
-                    );
-                  })}
+                <div className="max-h-80 overflow-y-auto rounded-xl border border-neutral-200 p-2 dark:border-neutral-700">
+                  {categoryGroups.length === 0 ? (
+                    <div className="flex h-24 items-center justify-center text-sm text-neutral-400">
+                      Produk tidak ditemukan
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {categoryGroups.map((group) => {
+                        const isCollapsed = !productQuery && collapsedGroups.has(group.id);
+                        return (
+                          <div key={group.id}>
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(group.id)}
+                              className="sticky top-0 z-10 flex w-full items-center justify-between rounded-lg bg-primary-50 px-3 py-2 text-left text-xs font-semibold text-primary-700 dark:bg-secondary-800 dark:text-primary-200"
+                            >
+                              <span>{group.label}</span>
+                              <span className="flex items-center gap-2">
+                                <span>{group.products.length} produk</span>
+                                <ChevronDown size={15} className={`transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                              </span>
+                            </button>
+                            {!isCollapsed && (
+                              <div className="mt-1 space-y-1">
+                                {group.products.map((product) => {
+                                  const checked = selectedProductIds.has(product.id);
+                                  return (
+                                    <label key={product.id} className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                                      <input type="checkbox" checked={checked} onChange={() => toggleProduct(product.id)} className="h-4 w-4" />
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">{product.name}</span>
+                                        <span className="block text-xs text-neutral-500">
+                                          {[product.brand, product.size, product.color].filter(Boolean).join(' · ') || 'Detail belum lengkap'}
+                                        </span>
+                                      </span>
+                                      <span className="font-mono text-xs text-neutral-500">{product.product_code}</span>
+                                      <span className={`badge ${itemStatusColor(product.availability_status)}`}>{AVAILABILITY_LABELS[product.availability_status]}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

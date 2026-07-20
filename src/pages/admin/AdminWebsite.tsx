@@ -120,6 +120,7 @@ export default function AdminWebsite() {
             <label className="mb-1 block text-sm font-medium">Halaman Tujuan</label>
             <select value={banner.cta_page} onChange={(e) => setBanner({ ...banner, cta_page: e.target.value })} className="input-field">
               <option value="shop">Koleksi</option>
+              <option value="shop:packages">Koleksi - Paket Usaha</option>
               <option value="about">Tentang</option>
               <option value="contact">Kontak</option>
             </select>

@@ -80,7 +80,7 @@ export const DEFAULT_PROMO_BANNER: PromoBannerSetting = {
   title: 'Paket usaha thrift siap jual',
   subtitle: 'Kurasi pakaian pilihan untuk reseller dan pemilik butik kecil.',
   cta_label: 'Lihat Paket',
-  cta_page: 'shop',
+  cta_page: 'shop:packages',
   image_url: 'https://images.pexels.com/photos/1488463/pexels-photo-1488463.jpeg',
   is_active: true,
 };

@@ -41,6 +41,8 @@ export default function Home({ onNavigate }: Props) {
   }, []);
 
   const heroImage = promo.is_active ? promo.image_url : 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg';
+  const heroCtaPage = promo.cta_page === 'shop:packages' ? 'shop' : promo.cta_page || 'shop';
+  const heroCtaData = promo.cta_page === 'shop:packages' ? { category: 'packages' } : undefined;
 
   return (
     <div className="animate-fade-in">
@@ -69,7 +71,7 @@ export default function Home({ onNavigate }: Props) {
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <button
-                onClick={() => onNavigate(promo.cta_page || 'shop')}
+                onClick={() => onNavigate(heroCtaPage, heroCtaData)}
                 className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-8 py-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-700 active:scale-95"
               >
                 {promo.cta_label || 'Belanja Sekarang'} <ArrowRight size={18} />

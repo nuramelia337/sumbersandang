@@ -11,4 +11,13 @@ ON CONFLICT (slug) DO UPDATE SET
 
 UPDATE categories SET sort_order = 2 WHERE slug = 'promo';
 UPDATE categories SET sort_order = 3 WHERE slug = 'normal';
-UPDATE categories SET sort_order = 4 WHERE slug = 'premi';
+UPDATE categories
+SET name = 'Premium',
+    description = 'Kurasi terbaik dengan kondisi dan karakter lebih unggul.',
+    sort_order = 4
+WHERE slug = 'premi';
+
+UPDATE site_settings
+SET value = jsonb_set(value::jsonb, '{cta_page}', '"shop:packages"', true)
+WHERE key = 'promo_banner'
+  AND value->>'cta_label' = 'Lihat Paket';
