@@ -300,7 +300,45 @@ export default function AdminProducts() {
       ) : filtered.length === 0 ? (
         <div className="card flex h-40 items-center justify-center text-neutral-400">Tidak ada produk</div>
       ) : (
-        <div className="card overflow-hidden">
+        <>
+        <div className="space-y-3 md:hidden">
+          {filtered.map((p) => {
+            const availability = productAvailabilityFromStock(p);
+            return (
+              <div key={p.id} className="card p-4">
+                <div className="flex gap-3">
+                  <img src={getProductImageUrl(p)} alt={p.name} className="h-20 w-20 shrink-0 rounded-xl bg-neutral-50 object-contain" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs text-primary-600">{p.product_code}</span>
+                      <span className={`badge ${itemStatusColor(availability)}`}>{AVAILABILITY_LABELS[availability]}</span>
+                    </div>
+                    <h2 className="mt-1 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{p.name}</h2>
+                    <p className="text-xs text-neutral-500">{p.brand || '-'} {p.internal_notes ? '- Ada catatan' : ''}</p>
+                    <p className="mt-1 text-sm font-bold text-primary-600">{formatIDR(p.selling_price)}</p>
+                    <p className="mt-1 inline-flex items-center gap-1 text-xs text-neutral-500">
+                      <MapPin size={13} /> {STORAGE_LOCATION_LABELS[normalizeStorageLocation(p.storage_location)]}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => openEdit(p)} className="btn-secondary px-4 py-2">
+                    <Edit size={16} /> Edit
+                  </button>
+                  <button type="button" onClick={() => handleDelete(p)} className="inline-flex items-center justify-center gap-2 rounded-full bg-error-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-error-700">
+                    <Trash2 size={16} /> Hapus
+                  </button>
+                  {availability !== 'sold' && (
+                    <button type="button" onClick={() => markSold(p)} className="btn-secondary col-span-2 px-4 py-2 text-success-700">
+                      <CheckCircle size={16} /> Tandai Sold
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="card hidden overflow-hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
@@ -349,6 +387,7 @@ export default function AdminProducts() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {showForm && (

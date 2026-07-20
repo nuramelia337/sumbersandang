@@ -187,7 +187,38 @@ export default function AdminInventory() {
       {loading ? (
         <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="skeleton h-16" />)}</div>
       ) : tab === 'movements' ? (
-        <div className="card overflow-hidden">
+        <>
+        <div className="space-y-3 md:hidden">
+          {movements.map((m) => {
+            const product = products.find((p) => p.id === m.product_id);
+            return (
+              <div key={m.id} className="card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{product?.name || 'Unknown'}</h2>
+                    <p className="mt-1 text-xs text-neutral-500">{m.notes || '-'}</p>
+                  </div>
+                  <span className={`badge ${typeColors[m.type]}`}>{m.type}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-neutral-100 pt-3 text-center text-xs dark:border-neutral-800">
+                  <div>
+                    <p className="text-neutral-500">Jumlah</p>
+                    <p className="mt-1 font-semibold">{m.quantity}</p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-500">Sebelum</p>
+                    <p className="mt-1 font-semibold">{m.quantity_before}</p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-500">Sesudah</p>
+                    <p className="mt-1 font-semibold">{m.quantity_after}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="card hidden overflow-hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
@@ -220,8 +251,35 @@ export default function AdminInventory() {
             </table>
           </div>
         </div>
+        </>
       ) : (
-        <div className="card overflow-hidden">
+        <>
+        <div className="space-y-3 md:hidden">
+          {pos.map((po) => (
+            <div key={po.id} className="card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-primary-600">{po.po_number}</p>
+                  <h2 className="mt-1 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{po.supplier_name}</h2>
+                  <p className="text-xs text-neutral-500">{po.total_items} item</p>
+                </div>
+                <span className={`badge ${po.status === 'received' ? 'bg-success-100 text-success-700' : po.status === 'sent' ? 'bg-warning-100 text-warning-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                  {po.status}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                <span className="text-xs text-neutral-500">Total Cost</span>
+                <span className="font-semibold text-primary-600">{formatIDR(po.total_cost)}</span>
+              </div>
+              {po.status === 'sent' && (
+                <button type="button" onClick={() => receivePO(po)} className="btn-secondary mt-4 w-full text-success-700">
+                  <Package size={16} /> Terima
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="card hidden overflow-hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
@@ -259,6 +317,7 @@ export default function AdminInventory() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Adjust modal */}

@@ -5,6 +5,7 @@ import { formatIDR } from '../lib/constants';
 import { useCart } from '../lib/cart';
 import type { Product, Category } from '../lib/types';
 import { AVAILABILITY_LABELS, itemStatusColor, productAvailabilityFromStock, productIsAvailable, storageImageUrl } from '../lib/business';
+import { useAlert } from '../components/AlertProvider';
 
 interface Props {
   productId: string;
@@ -18,6 +19,7 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
   const [activeImage, setActiveImage] = useState(0);
   const [qty, setQty] = useState(1);
   const { addItem, setIsOpen } = useCart();
+  const { showAlert } = useAlert();
 
   useEffect(() => {
     (async () => {
@@ -45,6 +47,29 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
     if (product && productIsAvailable(product)) {
       addItem(product, qty);
       onNavigate('checkout');
+    }
+  };
+
+  const handleWishlist = () => {
+    showAlert({
+      title: 'Wishlist belum aktif',
+      message: 'Fitur wishlist sedang disiapkan. Untuk sementara, simpan produk lewat tombol Bagikan.',
+      variant: 'info',
+    });
+  };
+
+  const handleShare = async () => {
+    if (!product) return;
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: product.name, text: `Cek produk ${product.name} di Sumber Sandang`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      showAlert({ title: 'Link disalin', message: 'Link produk berhasil disalin ke clipboard.', variant: 'success' });
+    } catch {
+      showAlert({ title: 'Gagal membagikan', message: 'Coba salin link halaman ini secara manual.', variant: 'warning' });
     }
   };
 
@@ -214,10 +239,10 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
           </div>
 
           <div className="mt-3 flex gap-2">
-            <button className="btn-ghost flex-1">
+            <button type="button" onClick={handleWishlist} className="btn-ghost flex-1">
               <Heart size={18} /> Wishlist
             </button>
-            <button className="btn-ghost flex-1">
+            <button type="button" onClick={handleShare} className="btn-ghost flex-1">
               <Share2 size={18} /> Bagikan
             </button>
           </div>

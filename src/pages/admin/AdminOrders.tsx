@@ -157,7 +157,38 @@ export default function AdminOrders() {
       ) : filtered.length === 0 ? (
         <div className="card flex h-40 items-center justify-center text-neutral-400">Tidak ada pesanan</div>
       ) : (
-        <div className="card overflow-hidden">
+        <>
+        <div className="space-y-3 md:hidden">
+          {filtered.map((o) => (
+            <div key={o.id} className="card p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-primary-600">{o.order_number}</p>
+                  <h2 className="mt-1 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{o.customer_name}</h2>
+                  <p className="text-xs text-neutral-500">{o.customer_phone}</p>
+                  <p className="mt-1 text-xs text-neutral-500">{formatDateTime(o.created_at)}</p>
+                </div>
+                <span className={`badge ${STATUS_COLORS[o.order_status] || 'bg-neutral-100'}`}>{o.order_status}</span>
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                <span className="text-xs text-neutral-500">Total</span>
+                <span className="font-semibold text-primary-600">{formatIDR(o.total_amount)}</span>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <button type="button" onClick={() => viewOrder(o)} className="btn-secondary px-3 py-2">
+                  <Eye size={16} /> Detail
+                </button>
+                <button type="button" onClick={() => sendWhatsApp(o)} className="btn-secondary px-3 py-2 text-success-700">
+                  <MessageCircle size={16} /> WA
+                </button>
+                <button type="button" onClick={() => deleteOrder(o)} className="inline-flex items-center justify-center gap-2 rounded-full bg-error-600 px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-error-700">
+                  <Trash2 size={16} /> Hapus
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="card hidden overflow-hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
@@ -202,6 +233,7 @@ export default function AdminOrders() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Order detail modal */}

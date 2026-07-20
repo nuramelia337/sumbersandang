@@ -86,12 +86,12 @@ export default function AdminManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Admin</h1>
           <p className="text-sm text-neutral-500">Multi-admin, log aktivitas, dan backup database</p>
         </div>
-        <button onClick={backup} disabled={backupLoading} className="btn-primary">
+        <button onClick={backup} disabled={backupLoading} className="btn-primary w-full sm:w-auto">
           {backupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download size={18} />} Backup Database
         </button>
       </div>
@@ -127,22 +127,22 @@ export default function AdminManagement() {
           </div>
           <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {admins.map((admin) => (
-              <div key={admin.id} className="flex items-center justify-between gap-3 p-4">
-                <div className="flex items-center gap-3">
+              <div key={admin.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-neutral-800">
                     <Shield size={18} />
                   </div>
-                  <div>
-                    <p className="font-semibold">{admin.full_name || admin.email}</p>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{admin.full_name || admin.email}</p>
                     <p className="text-xs text-neutral-500">{admin.email} · {admin.role}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => toggleAdmin(admin)} className={`badge ${admin.is_active ? 'bg-success-100 text-success-700' : 'bg-neutral-100 text-neutral-500'}`}>
+                <div className="flex items-center gap-2 sm:justify-end">
+                  <button type="button" onClick={() => toggleAdmin(admin)} className={`badge min-h-9 justify-center px-3 ${admin.is_active ? 'bg-success-100 text-success-700' : 'bg-neutral-100 text-neutral-500'}`}>
                     {admin.is_active ? 'Aktif' : 'Nonaktif'}
                   </button>
                   {admin.id !== currentUserId && admin.role !== 'owner' && (
-                    <button onClick={() => deleteAdmin(admin)} className="rounded-lg p-2 text-error-600 hover:bg-error-50"><Trash2 size={16} /></button>
+                    <button type="button" onClick={() => deleteAdmin(admin)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg px-3 text-error-600 hover:bg-error-50"><Trash2 size={16} /> <span className="text-sm font-semibold">Hapus</span></button>
                   )}
                 </div>
               </div>
