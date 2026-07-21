@@ -63,10 +63,8 @@ export default function AdminManagement() {
         const { data, error } = await supabase.functions.invoke('delete-admin', {
           body: { admin_id: admin.id },
         });
-        if (error || data?.error) {
-          showAlert({ title: 'Gagal hapus admin', message: data?.error || error?.message || 'Gagal menghapus admin.', variant: 'error' });
-          return;
-        }
+        if (error || data?.error) throw new Error(data?.error || error?.message || 'Gagal menghapus admin.');
+        setAdmins((prev) => prev.filter((item) => item.id !== admin.id));
         loadData();
       },
     });

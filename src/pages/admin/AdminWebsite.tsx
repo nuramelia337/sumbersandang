@@ -82,8 +82,10 @@ export default function AdminWebsite() {
       variant: 'error',
       confirmLabel: 'Hapus',
       onConfirm: async () => {
-        await supabase.from('testimonials').delete().eq('id', testimonial.id);
+        const { error } = await supabase.from('testimonials').delete().eq('id', testimonial.id);
+        if (error) throw new Error(error.message);
         await logActivity('testimonial_deleted', 'testimonial', testimonial.id, `Deleted testimonial: ${testimonial.customer_name}`);
+        setTestimonials((prev) => prev.filter((item) => item.id !== testimonial.id));
         loadData();
       },
     });

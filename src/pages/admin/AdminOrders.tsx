@@ -106,24 +106,17 @@ export default function AdminOrders() {
       variant: 'error',
       confirmLabel: 'Hapus Pesanan',
       onConfirm: async () => {
-        try {
-          await transitionOrderInventory(order.id, 'cancelled');
-          await supabase.from('cash_ledger').delete().eq('reference_type', 'order').eq('reference_id', order.id).eq('type', 'in');
-          const { error } = await supabase.from('orders').delete().eq('id', order.id);
-          if (error) {
-            showAlert({ title: 'Gagal hapus pesanan', message: error.message, variant: 'error' });
-            return;
-          }
-          await logActivity('order_deleted', 'order', order.id, `Deleted order ${order.order_number}`);
-          if (selectedOrder?.id === order.id) setSelectedOrder(null);
-          loadOrders();
-        } catch (err) {
-          showAlert({
-            title: 'Gagal hapus pesanan',
-            message: err instanceof Error ? err.message : 'Terjadi kesalahan saat menghapus pesanan.',
-            variant: 'error',
-          });
-        }
+        await transitionOrderInventory(order.id, 'cancelled');
+        const { error: ledgerError } = await supabase.from('cash_ledger').delete().eq('reference_type', 'order').eq('reference_id', order.id).eq('type', 'in');
+        if (ledgerError) throw new Error(ledgerError.message);
+
+        const { error } = await supabase.from('orders').delete().eq('id', order.id);
+        if (error) throw new Error(error.message);
+
+        await logActivity('order_deleted', 'order', order.id, `Deleted order ${order.order_number}`);
+        if (selectedOrder?.id === order.id) setSelectedOrder(null);
+        setOrders((prev) => prev.filter((item) => item.id !== order.id));
+        loadOrders();
       },
     });
   };

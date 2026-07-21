@@ -48,11 +48,20 @@ export function AlertProvider({ children }: { children: ReactNode }) {
   };
 
   const confirm = async () => {
-    if (!alert) return;
+    const currentAlert = alert;
+    if (!currentAlert) return;
     setWorking(true);
     try {
-      await alert.onConfirm?.();
-      setAlert(null);
+      await currentAlert.onConfirm?.();
+      setAlert((prev) => (prev === currentAlert ? null : prev));
+    } catch (err) {
+      setAlert({
+        title: 'Aksi gagal',
+        message: err instanceof Error ? err.message : 'Terjadi kesalahan saat menjalankan aksi.',
+        variant: 'error',
+        confirmLabel: 'OK',
+        showCancel: false,
+      });
     } finally {
       setWorking(false);
     }

@@ -168,8 +168,20 @@ export default function AdminPackages() {
     }
 
     const packageId = result.data.id;
-    await supabase.from('business_package_items').delete().eq('package_id', packageId);
-    await supabase.from('business_package_items').insert(form.product_ids.map((product_id: string) => ({ package_id: packageId, product_id })));
+    const { error: deleteItemsError } = await supabase.from('business_package_items').delete().eq('package_id', packageId);
+    if (deleteItemsError) {
+      showAlert({ title: 'Gagal memperbarui isi paket', message: deleteItemsError.message, variant: 'error' });
+      setSaving(false);
+      return;
+    }
+
+    const { error: insertItemsError } = await supabase.from('business_package_items').insert(form.product_ids.map((product_id: string) => ({ package_id: packageId, product_id })));
+    if (insertItemsError) {
+      showAlert({ title: 'Gagal menyimpan isi paket', message: insertItemsError.message, variant: 'error' });
+      setSaving(false);
+      return;
+    }
+
     await logActivity(editing ? 'package_updated' : 'package_created', 'business_package', packageId, `${editing ? 'Updated' : 'Created'} package: ${form.name}`);
     setShowForm(false);
     setSaving(false);
@@ -183,12 +195,17 @@ export default function AdminPackages() {
       variant: 'error',
       confirmLabel: 'Hapus',
       onConfirm: async () => {
-        const { error } = await supabase.from('business_packages').delete().eq('id', pkg.id);
-        if (error) {
-          showAlert({ title: 'Gagal hapus paket', message: error.message, variant: 'error' });
-          return;
-        }
+        const { error: orderItemsError } = await supabase.from('order_items').update({ package_id: null }).eq('package_id', pkg.id);
+        if (orderItemsError) throw new Error(orderItemsError.message);
+
+        const { error: packageItemsError } = await supabase.from('business_package_items').delete().eq('package_id', pkg.id);
+        if (packageItemsError) throw new Error(packageItemsError.message);
+
+        const { error: packageError } = await supabase.from('business_packages').delete().eq('id', pkg.id);
+        if (packageError) throw new Error(packageError.message);
+
         await logActivity('package_deleted', 'business_package', pkg.id, `Deleted package: ${pkg.name}`);
+        setPackages((prev) => prev.filter((item) => item.id !== pkg.id));
         loadData();
       },
     });

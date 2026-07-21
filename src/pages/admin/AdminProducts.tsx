@@ -210,12 +210,20 @@ export default function AdminProducts() {
       variant: 'error',
       confirmLabel: 'Hapus',
       onConfirm: async () => {
-        const { error } = await supabase.from('products').delete().eq('id', product.id);
-        if (error) {
-          showAlert({ title: 'Gagal hapus produk', message: error.message, variant: 'error' });
-          return;
-        }
+        const { error: packageItemsError } = await supabase.from('business_package_items').delete().eq('product_id', product.id);
+        if (packageItemsError) throw new Error(packageItemsError.message);
+
+        const { error: orderItemsError } = await supabase.from('order_items').update({ product_id: null }).eq('product_id', product.id);
+        if (orderItemsError) throw new Error(orderItemsError.message);
+
+        const { error: movementsError } = await supabase.from('inventory_movements').delete().eq('product_id', product.id);
+        if (movementsError) throw new Error(movementsError.message);
+
+        const { error: productError } = await supabase.from('products').delete().eq('id', product.id);
+        if (productError) throw new Error(productError.message);
+
         await logActivity('product_deleted', 'product', product.id, `Deleted product: ${product.name}`);
+        setProducts((prev) => prev.filter((item) => item.id !== product.id));
         loadData();
       },
     });
