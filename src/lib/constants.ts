@@ -4,7 +4,7 @@ export const BRAND = {
   logo: '/sumber-sandang-logo.webp',
   instagram: 'sumber.sandanggg',
   instagramUrl: 'https://www.instagram.com/sumber.sandanggg',
-  mapsUrl: 'https://maps.app.goo.gl/zYVh2tbauVVR1EnP8',
+  mapsUrl: 'https://maps.app.goo.gl/UmNhFErpCYFqWqUNA',
   whatsapp: '6281521705794',
   whatsappDisplay: '+62 815-2170-5794',
   email: 'lia09.amel@gmail.com',
