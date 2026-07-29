@@ -33,3 +33,4 @@ export function useTheme() {
   if (!c) throw new Error('useTheme must be inside ThemeProvider');
   return c;
 }
+
