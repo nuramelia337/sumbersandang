@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, CheckCircle, MessageCircle, AlertCircle, Instagram, Calendar, Clock } from 'lucide-react';
 import { getCartItemCode, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { supabase } from '../lib/supabase';
@@ -17,6 +17,13 @@ import type { CartItem } from '../lib/types';
 interface Props {
   onNavigate: (page: string, data?: any) => void;
 }
+
+const toDateValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function Checkout({ onNavigate }: Props) {
   const { items, subtotal, clearCart } = useCart();
@@ -52,8 +59,23 @@ export default function Checkout({ onNavigate }: Props) {
 
   const shippingCost = 0;
   const total = subtotal - discount + shippingCost;
+  const today = toDateValue(new Date());
 
-  const today = new Date().toISOString().split('T')[0];
+  const openNativePicker = (input: HTMLInputElement) => {
+    if (!input) return;
+    input.focus({ preventScroll: true });
+    try {
+      input.showPicker?.();
+    } catch {
+      // Some mobile browsers only support focusing native date/time inputs.
+    }
+  };
+
+  useEffect(() => {
+    if (step === 'success') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
+  }, [step]);
 
   const applyCoupon = async () => {
     if (!form.coupon) return;
@@ -101,6 +123,7 @@ export default function Checkout({ onNavigate }: Props) {
       return;
     }
     setShowWaConfirm(true);
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'smooth' }));
   };
 
   const confirmWhatsApp = async () => {
@@ -492,8 +515,9 @@ export default function Checkout({ onNavigate }: Props) {
                     type="date"
                     min={today}
                     value={form.pickupDate}
+                    onClick={(e) => openNativePicker(e.currentTarget)}
                     onChange={(e) => setForm({ ...form, pickupDate: e.target.value })}
-                    className="input-field"
+                    className="input-field min-h-11 cursor-pointer [touch-action:manipulation]"
                   />
                 </div>
                 <div>
@@ -504,8 +528,9 @@ export default function Checkout({ onNavigate }: Props) {
                     required
                     type="time"
                     value={form.pickupTime}
+                    onClick={(e) => openNativePicker(e.currentTarget)}
                     onChange={(e) => setForm({ ...form, pickupTime: e.target.value })}
-                    className="input-field"
+                    className="input-field min-h-11 cursor-pointer [touch-action:manipulation]"
                   />
                 </div>
               </div>

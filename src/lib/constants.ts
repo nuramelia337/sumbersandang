@@ -7,7 +7,7 @@ export const BRAND = {
   mapsUrl: 'https://maps.app.goo.gl/UmNhFErpCYFqWqUNA',
   whatsapp: '6281521705794',
   whatsappDisplay: '+62 815-2170-5794',
-  email: 'lia09.amel@gmail.com',
+  email: 'sumber.sandanggg@gmail.com',
 };
 
 export const WHATSAPP_LINK = `https://wa.me/${BRAND.whatsapp}`;
