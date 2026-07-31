@@ -1,6 +1,6 @@
 // @ts-nocheck 
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import supabase from '../../lib/supabase';
 import { formatIDR, formatDateTime, waMessageTo } from '../../lib/constants';
 import { Search, MessageCircle, Eye, X, Edit, Trash2 } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/types';
