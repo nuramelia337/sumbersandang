@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import supabase from '../../lib/supabase';
 import { formatIDR, formatDateTime, waMessageTo } from '../../lib/constants';
-import { Search, MessageCircle, Eye, X, Trash2 } from 'lucide-react';
+import { Search, MessageCircle, Eye, X, Edit, Trash2 } from 'lucide-react';
 import type { Order, OrderItem } from '../../lib/types';
 import { logActivity, PAYMENT_LABELS, SHIPPING_LABELS, transitionOrderInventory } from '../../lib/business';
 import { useAlert } from '../../components/AlertProvider';
@@ -19,7 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
   refunded: 'bg-error-100 text-error-700',
 };
 
-const STATUSES = ['pending', 'confirmed', 'processing', 'packing', 'ready', 'shipped', 'completed', 'cancelled', 'returned', 'refunded'];
+const STATUSES = ['pending', 'confirmed', 'processing', 'packing', 'ready', 'shipped', 'completed', 'cancelled'];
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -28,6 +28,9 @@ export default function AdminOrders() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [editingPaymentOrder, setEditingPaymentOrder] = useState<Order | null>(null);
+  const [newPaymentMethod, setNewPaymentMethod] = useState('');
+
   const { showAlert, showConfirm } = useAlert();
 
   useEffect(() => {
@@ -35,282 +38,328 @@ export default function AdminOrders() {
   }, []);
 
   const loadOrders = async () => {
+    setLoading(true);
     try {
-      await supabase.rpc('release_expired_keeps');
-    } catch {
-      // Non-blocking; orders can still load if the migration is not applied yet.
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const now = new Date();
+      const updatedOrders = [...(data || [])];
+
+      // Logic: Batalkan otomatis pesanan pending > 3 hari jika BELUM PAYMENT
+      for (const order of updatedOrders) {
+        if (order.status === 'pending') {
+          const createdAt = new Date(order.created_at);
+          const diffInDays = (now.getTime() - createdAt.getTime()) / (1000 * 3600 * 24);
+
+          // Hanya batalkan & kembalikan stok jika > 3 hari DAN belum dibayar
+          if (diffInDays >= 3 && order.payment_status !== 'paid') {
+            await transitionOrderInventory(order.id, 'pending', 'cancelled');
+            await supabase
+              .from('orders')
+              .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+              .eq('id', order.id);
+
+            order.status = 'cancelled';
+            await logActivity('system', 'cancel_expired_order', `Sistem membatalkan pesanan #${order.order_number} (Pending > 3 hari belum dibayar)`);
+          }
+        }
+      }
+
+      setOrders(updatedOrders);
+    } catch (err: any) {
+      showAlert('Gagal memuat pesanan: ' + err.message, 'error');
+    } finally {
+      setLoading(false);
     }
-    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    setOrders(data || []);
-    setLoading(false);
   };
 
-  const filtered = orders.filter((o) => {
-    const matchSearch = o.order_number.toLowerCase().includes(search.toLowerCase()) ||
-      o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
-      o.customer_phone.includes(search);
-    const matchStatus = filterStatus === 'all' || o.order_status === filterStatus;
-    return matchSearch && matchStatus;
+  const handleViewDetails = async (order: Order) => {
+    setSelectedOrder(order);
+    try {
+      // Mengambil detail pesanan beserta relational data produk (foto & kode)
+      const { data, error } = await supabase
+        .from('order_items')
+        .select(`
+          *,
+          product:products (
+            id,
+            name,
+            code,
+            image_url
+          )
+        `)
+        .eq('order_id', order.id);
+
+      if (error) throw error;
+      setOrderItems(data || []);
+    } catch (err: any) {
+      showAlert('Gagal memuat detail item pesanan: ' + err.message, 'error');
+    }
+  };
+
+  const handleStatusChange = async (orderId: string, currentStatus: string, newStatus: string) => {
+    try {
+      await transitionOrderInventory(orderId, currentStatus, newStatus);
+
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      showAlert('Status pesanan berhasil diperbarui', 'success');
+      loadOrders();
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+    } catch (err: any) {
+      showAlert('Gagal mengubah status: ' + err.message, 'error');
+    }
+  };
+
+  const handleUpdatePaymentMethod = async () => {
+    if (!editingPaymentOrder || !newPaymentMethod) return;
+
+    try {
+      const oldMethod = editingPaymentOrder.payment_method;
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          payment_method: newPaymentMethod,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingPaymentOrder.id);
+
+      if (error) throw error;
+
+      await logActivity(
+        'admin',
+        'update_payment_method',
+        `Mengubah metode pembayaran order #${editingPaymentOrder.order_number} dari ${PAYMENT_LABELS[oldMethod] || oldMethod} menjadi ${PAYMENT_LABELS[newPaymentMethod] || newPaymentMethod}`
+      );
+
+      showAlert('Metode pembayaran berhasil diperbarui', 'success');
+      setEditingPaymentOrder(null);
+      loadOrders();
+    } catch (err: any) {
+      showAlert('Gagal mengubah metode pembayaran: ' + err.message, 'error');
+    }
+  };
+
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
+      order.order_number?.toLowerCase().includes(search.toLowerCase()) ||
+      order.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+      order.customer_phone?.includes(search);
+    const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
+    return matchesSearch && matchesStatus;
   });
 
-  const updateStatus = async (id: string, status: string) => {
-    try {
-      const { error } = await supabase.from('orders').update({ order_status: status, updated_at: new Date().toISOString() }).eq('id', id);
-      if (error) throw new Error(error.message);
-      if (status === 'shipped') {
-        const { error: shippedError } = await supabase.from('orders').update({ shipped_at: new Date().toISOString() }).eq('id', id);
-        if (shippedError) throw new Error(shippedError.message);
-      }
-      if (status === 'completed') {
-        const { error: completedError } = await supabase.from('orders').update({ completed_at: new Date().toISOString(), payment_status: 'paid' }).eq('id', id);
-        if (completedError) throw new Error(completedError.message);
-      }
-      await transitionOrderInventory(id, status);
-      const { error: ledgerError } = await supabase.rpc('upsert_order_cash_ledger', { p_order_id: id });
-      if (ledgerError) throw new Error(ledgerError.message);
-      await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
-      loadOrders();
-      if (selectedOrder?.id === id) {
-        setSelectedOrder({ ...selectedOrder, order_status: status as any });
-      }
-    } catch (err) {
-      showAlert({
-        title: 'Gagal mengubah status pesanan',
-        message: err instanceof Error ? err.message : 'Terjadi kesalahan saat mengubah status pesanan.',
-        variant: 'error',
-      });
-    }
-  };
-
-  const viewOrder = async (order: Order) => {
-    setSelectedOrder(order);
-    const { data } = await supabase.from('order_items').select('*').eq('order_id', order.id);
-    setOrderItems(data || []);
-  };
-
-  const sendWhatsApp = (order: Order) => {
-    const igMatch = (order.notes || '').match(/IG: @?([^\s|]+)/);
-    const ig = igMatch ? `\nIG: @${igMatch[1]}` : '';
-    const pickupMatch = (order.notes || '').match(/Ambil: (\S+ \S+)/);
-    const pickup = pickupMatch ? `\nPengambilan: ${pickupMatch[1]}` : '';
-    const paymentLabel = PAYMENT_LABELS[order.payment_method] || order.payment_method;
-    const shippingLabel = SHIPPING_LABELS[order.shipping_method] || order.shipping_method;
-    const msg = `Halo ${order.customer_name}!${ig}\n\nPesanan Anda *${order.order_number}* telah kami terima.\nTotal: ${formatIDR(order.total_amount)}\nMetode Pembayaran: ${paymentLabel}\nMetode Pengiriman: ${shippingLabel}${pickup}\n\nTerima kasih telah berbelanja di Sumber Sandang!`;
-    window.open(waMessageTo(order.customer_phone, msg), '_blank');
-  };
-
-  const deleteOrder = (order: Order) => {
-    showConfirm({
-      title: 'Hapus pesanan?',
-      message: `Pesanan ${order.order_number} akan dihapus. Jika pesanan ini sudah masuk saldo, Total Uang Masuk akan berkurang sebesar ${formatIDR(order.total_amount)}.`,
-      variant: 'error',
-      confirmLabel: 'Hapus Pesanan',
-      onConfirm: async () => {
-        await transitionOrderInventory(order.id, 'cancelled');
-        const { error: ledgerError } = await supabase.from('cash_ledger').delete().eq('reference_type', 'order').eq('reference_id', order.id).eq('type', 'in');
-        if (ledgerError) throw new Error(ledgerError.message);
-
-        const { error } = await supabase.from('orders').delete().eq('id', order.id);
-        if (error) throw new Error(error.message);
-
-        await logActivity('order_deleted', 'order', order.id, `Deleted order ${order.order_number}`);
-        if (selectedOrder?.id === order.id) setSelectedOrder(null);
-        setOrders((prev) => prev.filter((item) => item.id !== order.id));
-        loadOrders();
-      },
-    });
-  };
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Pesanan</h1>
-        <p className="text-sm text-neutral-500">{orders.length} total pesanan</p>
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900">Kelola Pesanan</h1>
+          <p className="text-sm text-neutral-500">Daftar transaksi dan status pesanan masuk</p>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+      {/* Filter & Pencarian */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between bg-white p-4 rounded-xl shadow-sm border border-neutral-200">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
           <input
             type="text"
+            placeholder="Cari nomor pesanan, nama, atau WhatsApp..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari pesanan..."
-            className="input-field pl-10"
+            className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input-field max-w-[180px]">
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
+        >
           <option value="all">Semua Status</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map((st) => (
+            <option key={st} value={st}>
+              {st.toUpperCase()}
+            </option>
+          ))}
         </select>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="skeleton h-16" />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="card flex h-40 items-center justify-center text-neutral-400">Tidak ada pesanan</div>
-      ) : (
-        <>
-        <div className="space-y-3 md:hidden">
-          {filtered.map((o) => (
-            <div key={o.id} className="card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-mono text-xs text-primary-600">{o.order_number}</p>
-                  <h2 className="mt-1 truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{o.customer_name}</h2>
-                  <p className="text-xs text-neutral-500">{o.customer_phone}</p>
-                  <p className="mt-1 text-xs text-neutral-500">{formatDateTime(o.created_at)}</p>
-                </div>
-                <span className={`badge ${STATUS_COLORS[o.order_status] || 'bg-neutral-100'}`}>{o.order_status}</span>
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3 dark:border-neutral-800">
-                <span className="text-xs text-neutral-500">Total</span>
-                <span className="font-semibold text-primary-600">{formatIDR(o.total_amount)}</span>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => viewOrder(o)} className="btn-secondary px-3 py-2">
-                  <Eye size={16} /> Detail
-                </button>
-                <button type="button" onClick={() => sendWhatsApp(o)} className="btn-secondary px-3 py-2 text-success-700">
-                  <MessageCircle size={16} /> WA
-                </button>
-                <button type="button" onClick={() => deleteOrder(o)} className="inline-flex items-center justify-center gap-2 rounded-full bg-error-600 px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-error-700">
-                  <Trash2 size={16} /> Hapus
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="card hidden overflow-hidden md:block">
+      {/* Tabel Utama Pesanan */}
+      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-neutral-500">Memuat pesanan...</div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="p-8 text-center text-neutral-500">Tidak ada pesanan ditemukan.</div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">No. Pesanan</th>
-                  <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Customer</th>
-                  <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Tanggal</th>
-                  <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Total</th>
-                  <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Status</th>
-                  <th className="px-4 py-3 text-right font-semibold text-neutral-700 dark:text-neutral-300">Aksi</th>
+                  <th className="p-4">No. Pesanan</th>
+                  <th className="p-4">Tanggal</th>
+                  <th className="p-4">Pelanggan</th>
+                  <th className="p-4">Pembayaran</th>
+                  <th className="p-4">Total</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {filtered.map((o) => (
-                  <tr key={o.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                    <td className="px-4 py-3 font-mono text-xs">{o.order_number}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-neutral-900 dark:text-neutral-100">{o.customer_name}</p>
-                      <p className="text-xs text-neutral-500">{o.customer_phone}</p>
+              <tbody className="divide-y divide-neutral-200">
+                {filteredOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-neutral-50 transition">
+                    <td className="p-4 font-semibold text-primary-600">#{order.order_number}</td>
+                    <td className="p-4 text-neutral-600">{formatDateTime(order.created_at)}</td>
+                    <td className="p-4">
+                      <div className="font-medium text-neutral-900">{order.customer_name}</div>
+                      <div className="text-xs text-neutral-500">{order.customer_phone}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-neutral-500">{formatDateTime(o.created_at)}</td>
-                    <td className="px-4 py-3 font-semibold text-primary-600">{formatIDR(o.total_amount)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`badge ${STATUS_COLORS[o.order_status] || 'bg-neutral-100'}`}>{o.order_status}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => viewOrder(o)} className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-primary-600 dark:hover:bg-neutral-700" title="Lihat detail">
-                          <Eye size={16} />
-                        </button>
-                        <button onClick={() => sendWhatsApp(o)} className="rounded-lg p-2 text-neutral-500 hover:bg-success-50 hover:text-success-600 dark:hover:bg-success-900/30" title="Kirim WhatsApp">
-                          <MessageCircle size={16} />
-                        </button>
-                        <button onClick={() => deleteOrder(o)} className="rounded-lg p-2 text-neutral-500 hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-900/30" title="Hapus pesanan">
-                          <Trash2 size={16} />
+                    <td className="p-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">
+                          {PAYMENT_LABELS[order.payment_method] || order.payment_method}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setEditingPaymentOrder(order);
+                            setNewPaymentMethod(order.payment_method);
+                          }}
+                          className="p-1 text-neutral-400 hover:text-primary-600 rounded hover:bg-neutral-100"
+                          title="Ganti Metode Pembayaran"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${order.payment_status === 'paid' ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'}`}>
+                        {order.payment_status === 'paid' ? 'Lunas' : 'Belum Bayar'}
+                      </span>
+                    </td>
+                    <td className="p-4 font-semibold">{formatIDR(order.total_amount)}</td>
+                    <td className="p-4">
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, order.status, e.target.value)}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer ${STATUS_COLORS[order.status] || 'bg-neutral-100'}`}
+                      >
+                        {STATUSES.map((st) => (
+                          <option key={st} value={st}>
+                            {st.toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => handleViewDetails(order)}
+                        className="p-2 text-neutral-600 hover:text-primary-600 hover:bg-neutral-100 rounded-lg"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-        </>
-      )}
+        )}
+      </div>
 
-      {/* Order detail modal */}
+      {/* Modal Detail Pesanan dengan Kode Barang & Foto */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedOrder(null)}>
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
               <div>
-                <h2 className="font-serif text-xl font-bold text-neutral-900 dark:text-neutral-50">Detail Pesanan</h2>
-                <p className="text-sm text-neutral-500">{selectedOrder.order_number}</p>
+                <h3 className="text-lg font-bold">Detail Pesanan #{selectedOrder.order_number}</h3>
+                <p className="text-xs text-neutral-500">{formatDateTime(selectedOrder.created_at)}</p>
               </div>
-              <button onClick={() => setSelectedOrder(null)} className="rounded-full p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                <X size={20} />
+              <button onClick={() => setSelectedOrder(null)} className="p-1 hover:bg-neutral-100 rounded-lg">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="card p-4">
-                <h3 className="mb-2 text-sm font-semibold">Info Customer</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">{selectedOrder.customer_name}</p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">{selectedOrder.customer_phone}</p>
-                {selectedOrder.notes && selectedOrder.notes.includes('IG:') && (
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">IG: @{(selectedOrder.notes.match(/IG: @?([^\s|]+)/) || [])[1] || '-'}</p>
-                )}
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">{selectedOrder.customer_address}</p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">{selectedOrder.customer_city}, {selectedOrder.customer_province}</p>
-              </div>
-              <div className="card p-4">
-                <h3 className="mb-2 text-sm font-semibold">Info Pembayaran</h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Metode: {PAYMENT_LABELS[selectedOrder.payment_method] || selectedOrder.payment_method}</p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Status: {selectedOrder.payment_status}</p>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengiriman: {SHIPPING_LABELS[selectedOrder.shipping_method] || selectedOrder.shipping_method}</p>
-                {selectedOrder.shipping_method === 'pickup' && selectedOrder.notes && selectedOrder.notes.includes('Ambil:') && (
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengambilan: {(selectedOrder.notes.match(/Ambil: (\S+ \S+)/) || [])[1] || '-'}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 card p-4">
-              <h3 className="mb-3 text-sm font-semibold">Item Pesanan</h3>
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-neutral-700">Daftar Produk yang Di-checkout</h4>
               <div className="space-y-2">
                 {orderItems.map((item) => (
-                  <div key={item.id} className="flex justify-between border-b border-neutral-100 pb-2 dark:border-neutral-800">
-                    <div>
-                      <p className="text-sm font-medium">{item.product_name}</p>
-                      <p className="text-xs text-neutral-500">
-                        {item.item_type === 'package' ? 'Paket Usaha · ' : ''}{item.quantity}x {formatIDR(item.unit_price)}
-                      </p>
+                  <div key={item.id} className="flex items-center justify-between border p-3 rounded-lg gap-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={item.product?.image_url || 'https://via.placeholder.com/60'}
+                        alt={item.product_name || item.product?.name}
+                        className="w-12 h-12 object-cover rounded-md border border-neutral-200"
+                      />
+                      <div>
+                        <div className="font-medium text-sm">{item.product_name || item.product?.name}</div>
+                        <div className="text-xs text-neutral-500">
+                          Kode Barang: <span className="font-mono text-primary-600 font-semibold">{item.product?.code || item.product_code || '-'}</span>
+                        </div>
+                        <div className="text-xs text-neutral-500">
+                          {item.quantity} x {formatIDR(item.price)}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold">{formatIDR(item.subtotal)}</p>
+                    <div className="font-semibold text-sm">{formatIDR(item.quantity * item.price)}</div>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 flex justify-between border-t border-neutral-200 pt-3 dark:border-neutral-700">
-                <span className="font-semibold">Total</span>
-                <span className="text-lg font-bold text-primary-600">{formatIDR(selectedOrder.total_amount)}</span>
-              </div>
             </div>
 
-            <div className="mt-4">
-              <label className="mb-2 block text-sm font-semibold">Update Status</label>
-              <select
-                value={selectedOrder.order_status}
-                onChange={(e) => updateStatus(selectedOrder.id, e.target.value)}
-                className="input-field"
-              >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+            <div className="border-t pt-4 flex justify-between items-center font-bold">
+              <span>Total Pesanan</span>
+              <span className="text-primary-600 text-lg">{formatIDR(selectedOrder.total_amount)}</span>
             </div>
+          </div>
+        </div>
+      )}
 
-            <button
-              type="button"
-              onClick={() => deleteOrder(selectedOrder)}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-error-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-error-700"
+      {/* Modal Edit Pembayaran */}
+      {editingPaymentOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-bold text-lg">Ganti Metode Pembayaran</h3>
+            <p className="text-sm text-neutral-600">
+              Ganti metode pembayaran pesanan <span className="font-semibold">#{editingPaymentOrder.order_number}</span>.
+            </p>
+
+            <select
+              value={newPaymentMethod}
+              onChange={(e) => setNewPaymentMethod(e.target.value)}
+              className="w-full border rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-500"
             >
-              <Trash2 size={16} /> Hapus Pesanan
-            </button>
+              {Object.entries(PAYMENT_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
 
-            {selectedOrder.notes && (
-              <div className="mt-4 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-800">
-                <p className="text-xs font-semibold text-neutral-500">Catatan Customer:</p>
-                <p className="text-sm text-neutral-700 dark:text-neutral-300">{selectedOrder.notes}</p>
-              </div>
-            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setEditingPaymentOrder(null)}
+                className="px-4 py-2 border rounded-lg text-sm text-neutral-600 hover:bg-neutral-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleUpdatePaymentMethod}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 font-medium"
+              >
+                Simpan Perubahan
+              </button>
+            </div>
           </div>
         </div>
       )}
