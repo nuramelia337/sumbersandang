@@ -1,5 +1,5 @@
-import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
-import { getCartItemCode, getCartItemKey, getCartItemMaxQty, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
+import { X, Trash2, ShoppingBag } from 'lucide-react';
+import { getCartItemCode, getCartItemKey, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { formatIDR } from '../lib/constants';
 import { packageImageUrl } from '../lib/business';
 import { getProductImageUrl } from '../lib/imageUtils';
@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function CartDrawer({ onCheckout }: Props) {
-  const { items, isOpen, setIsOpen, removeItem, updateQty, subtotal, totalItems } = useCart();
+  const { items, isOpen, setIsOpen, removeItem, subtotal, totalItems } = useCart();
   const handleCheckout = () => {
     setIsOpen(false);
     onCheckout();
@@ -53,8 +53,6 @@ export default function CartDrawer({ onCheckout }: Props) {
             <div className="space-y-4">
               {items.map((item) => {
                 const key = getCartItemKey(item);
-                const maxQty = getCartItemMaxQty(item);
-                const isAtMax = item.quantity >= maxQty;
 
                 return (
                   <div
@@ -78,23 +76,7 @@ export default function CartDrawer({ onCheckout }: Props) {
                         {formatIDR(getCartItemPrice(item))}
                       </p>
                       <div className="mt-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQty(key, item.quantity - 1)}
-                            className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                          <button
-                            onClick={() => updateQty(key, item.quantity + 1)}
-                            disabled={isAtMax}
-                            title={item.kind === 'product' && isAtMax ? `Stok tersedia ${maxQty}` : 'Tambah quantity'}
-                            className="rounded-full bg-neutral-100 p-1 text-neutral-600 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-800 dark:text-neutral-300"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
+                        <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-secondary-800 dark:text-primary-200">Qty 1</span>
                         <button
                           onClick={() => removeItem(key)}
                           className="text-error-500 hover:text-error-700"

@@ -17,7 +17,6 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
-  const [qty, setQty] = useState(1);
   const { addItem, setIsOpen } = useCart();
   const { showAlert } = useAlert();
 
@@ -38,14 +37,14 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
 
   const handleAddToCart = () => {
     if (product && productIsAvailable(product)) {
-      addItem(product, qty);
+      addItem(product);
       setIsOpen(true);
     }
   };
 
   const handleBuyNow = () => {
     if (product && productIsAvailable(product)) {
-      addItem(product, qty);
+      addItem(product);
       onNavigate('checkout');
     }
   };
@@ -194,30 +193,10 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
 
           <div className="mt-4 flex items-center gap-2 text-sm">
             <span className={`font-medium ${available ? 'text-success-600' : 'text-error-600'}`}>
-              {available ? `Stok: ${product.stock} pcs` : AVAILABILITY_LABELS[availability]}
+              {available ? 'Tersedia 1 item' : AVAILABILITY_LABELS[availability]}
             </span>
             <span className="text-neutral-400">|</span>
             <span className="text-neutral-500">Kode: {product.product_code}</span>
-          </div>
-
-          {/* Quantity */}
-          <div className="mt-6 flex items-center gap-4">
-            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Jumlah:</span>
-            <div className="flex items-center gap-2 rounded-full border border-neutral-300 px-2 py-1">
-              <button
-                onClick={() => setQty(Math.max(1, qty - 1))}
-                className="rounded-full p-1 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                <ArrowLeft size={14} className="rotate-90" />
-              </button>
-              <span className="w-8 text-center text-sm font-medium">{qty}</span>
-              <button
-                onClick={() => setQty(Math.min(Math.max(1, product.stock), qty + 1))}
-                className="rounded-full p-1 text-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                <ArrowLeft size={14} className="rotate-[-90deg]" />
-              </button>
-            </div>
           </div>
 
           {/* Actions */}

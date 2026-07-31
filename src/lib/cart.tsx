@@ -39,8 +39,8 @@ export function getCartItemPrice(item: CartItem): number {
   return item.kind === 'product' ? item.product.selling_price : item.package.price;
 }
 
-export function getCartItemMaxQty(item: CartItem): number {
-  return item.kind === 'product' ? Math.max(1, Number(item.product.stock || 0)) : Number.MAX_SAFE_INTEGER;
+export function getCartItemMaxQty(_item: CartItem): number {
+  return 1;
 }
 
 function clampCartQty(item: CartItem, qty: number): number {
@@ -56,19 +56,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const key = `product:${product.id}`;
       const ex = prev.find((item) => cartKey(item) === key);
-      if (ex) return prev.map((item) => (cartKey(item) === key ? { ...item, quantity: clampCartQty(item, item.quantity + qty) } : item));
+      if (ex) return prev;
       const newItem: CartItem = { kind: 'product', product, quantity: qty };
       return [...prev, { ...newItem, quantity: clampCartQty(newItem, qty) }];
     });
   };
 
-  const addPackage: CartCtx['addPackage'] = (pkg, qty = 1) => {
+  const addPackage: CartCtx['addPackage'] = (pkg, _qty = 1) => {
     if (!packageIsAvailable(pkg)) return;
     setItems((prev) => {
       const key = `package:${pkg.id}`;
       const ex = prev.find((item) => cartKey(item) === key);
-      if (ex) return prev.map((item) => (cartKey(item) === key ? { ...item, quantity: Math.max(1, item.quantity + qty) } : item));
-      return [...prev, { kind: 'package', package: pkg, quantity: Math.max(1, qty) }];
+      if (ex) return prev;
+      return [...prev, { kind: 'package', package: pkg, quantity: 1 }];
     });
   };
 

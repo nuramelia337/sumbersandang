@@ -241,10 +241,11 @@ export async function loadPublicPackages(limit = 6): Promise<BusinessPackage[]> 
     .from('business_packages')
     .select('*, business_package_items(*, product:products(*))')
     .eq('status', 'active')
+    .eq('availability_status', 'ready')
     .order('is_featured', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
-  return (data || []) as unknown as BusinessPackage[];
+  return ((data || []) as unknown as BusinessPackage[]).filter(packageIsAvailable);
 }
 
 export async function loadAdminProfiles(): Promise<AdminProfile[]> {
@@ -366,16 +367,20 @@ export function computePackageCogs(pkg: BusinessPackage): number {
 }
 
 export function productIsAvailable(product: Product): boolean {
-  return product.status === 'active' && product.availability_status === 'ready' && Number(product.stock || 0) > 0;
+  return product.status === 'active' && product.availability_status === 'ready' && Number(product.stock || 0) === 1;
 }
 
 export function packageIsAvailable(pkg: BusinessPackage): boolean {
-  return pkg.status === 'active' && pkg.availability_status === 'ready';
+  const baseAvailable = pkg.status === 'active' && pkg.availability_status === 'ready';
+  if (!baseAvailable) return false;
+  if (!Array.isArray(pkg.business_package_items)) return true;
+  return pkg.business_package_items.length > 0 && pkg.business_package_items.every((item) => item.product && productIsAvailable(item.product));
 }
 
 export function productAvailabilityFromStock(product: Partial<Product>): ProductAvailabilityStatus {
-  if (product.availability_status) return product.availability_status;
-  return Number(product.stock || 0) > 0 ? 'ready' : 'sold';
+  if (product.availability_status === 'reserved') return 'reserved';
+  if (product.availability_status === 'sold' || product.status === 'sold_out') return 'sold';
+  return Number(product.stock || 0) === 1 ? 'ready' : 'sold';
 }
 
 export function itemStatusColor(status: ProductAvailabilityStatus): string {

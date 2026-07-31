@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate, BRAND } from '../../lib/constants';
 import { TrendingUp, Package, ShoppingCart, Users, DollarSign, AlertTriangle, Clock, CheckCircle, Warehouse, TrendingDown, Wallet } from 'lucide-react';
-import { loadFinanceSummary, orderCountsAsRevenue, PAYMENT_LABELS } from '../../lib/business';
+import { loadFinanceSummary, orderCountsAsRevenue, PAYMENT_LABELS, productAvailabilityFromStock } from '../../lib/business';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -53,13 +53,12 @@ export default function AdminDashboard() {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-      const [orders, products, customers, orderItems, financeSummary, lowStockNotifications] = await Promise.all([
+      const [orders, products, customers, orderItems, financeSummary] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('products').select('*'),
         supabase.from('customers').select('id'),
         supabase.from('order_items').select('order_id, product_name, quantity, unit_price, purchase_price, item_type, created_at'),
         loadFinanceSummary().catch(() => ({ totalBalance: 0 })),
-        supabase.from('notifications').select('reference_id').eq('type', 'low_stock'),
       ]);
 
       const allOrders = orders.data || [];
@@ -96,22 +95,9 @@ export default function AdminDashboard() {
       const packagesSold = validItems.filter((i) => i.item_type === 'package').reduce((s, i) => s + Number(i.quantity || 0), 0);
       const totalRevenue = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const totalStock = allProducts.reduce((s, p) => s + p.stock, 0);
-      const readyProducts = allProducts.filter((p) => (p.availability_status || (p.stock > 0 ? 'ready' : 'sold')) === 'ready').length;
-      const soldProducts = allProducts.filter((p) => (p.availability_status || (p.stock > 0 ? 'ready' : 'sold')) === 'sold').length;
-      const lowProducts = allProducts.filter((p) => Number(p.stock || 0) <= Number(p.min_stock || 1));
-      const existingLowRefs = new Set((lowStockNotifications.data || []).map((n: any) => n.reference_id));
-      const newLowNotifications = lowProducts
-        .filter((p) => !existingLowRefs.has(p.id))
-        .map((p) => ({
-          type: 'low_stock',
-          title: p.stock === 0 ? 'Stok Habis' : 'Stok Menipis',
-          message: `${p.name} (${p.product_code}) tersisa ${p.stock} pcs`,
-          reference_type: 'product',
-          reference_id: p.id,
-        }));
-      if (newLowNotifications.length > 0) {
-        await supabase.from('notifications').insert(newLowNotifications);
-      }
+      const readyProducts = allProducts.filter((p) => productAvailabilityFromStock(p) === 'ready').length;
+      const soldProducts = allProducts.filter((p) => productAvailabilityFromStock(p) === 'sold').length;
+      const reservedProducts = allProducts.filter((p) => productAvailabilityFromStock(p) === 'reserved');
 
       const last7Days = Array.from({ length: 7 }, (_, index) => {
         const date = new Date(now);
@@ -131,7 +117,7 @@ export default function AdminDashboard() {
         totalOrders: allOrders.length,
         pendingOrders: allOrders.filter((o) => o.order_status === 'pending' || o.order_status === 'confirmed').length,
         totalProducts: allProducts.length,
-        lowStock: allProducts.filter((p) => p.stock <= p.min_stock).length,
+        lowStock: reservedProducts.length,
         totalCustomers: customers.data?.length || 0,
         avgOrderValue: validOrders.length > 0 ? validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) / validOrders.length : 0,
         totalCogs,
@@ -152,7 +138,7 @@ export default function AdminDashboard() {
       });
 
       setRecentOrders(allOrders.slice(0, 5));
-      setLowStockProducts(lowProducts.slice(0, 5));
+      setLowStockProducts(reservedProducts.slice(0, 5));
       setTopProducts(top);
       setLatestProducts(allProducts.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 5));
       setSalesTrend(last7Days);
@@ -163,9 +149,9 @@ export default function AdminDashboard() {
   const cards = [
     { label: 'Total Uang Masuk', value: formatIDR(stats.totalRevenue), icon: DollarSign, color: 'bg-success-500' },
     { label: 'Total Saldo', value: formatIDR(stats.totalBalance), icon: Wallet, color: 'bg-primary-700' },
-    { label: 'Barang Terjual', value: `${stats.totalSold} pcs`, icon: CheckCircle, color: 'bg-primary-500' },
-    { label: 'Terjual Hari Ini', value: `${stats.todaySold} pcs`, icon: CheckCircle, color: 'bg-accent-500' },
-    { label: 'Total Stok Barang', value: `${stats.totalStock} pcs`, icon: Warehouse, color: 'bg-secondary-500' },
+    { label: 'Barang Terjual', value: `${stats.totalSold} item`, icon: CheckCircle, color: 'bg-primary-500' },
+    { label: 'Terjual Hari Ini', value: `${stats.todaySold} item`, icon: CheckCircle, color: 'bg-accent-500' },
+    { label: 'Produk Tersedia', value: `${stats.totalStock} item`, icon: Warehouse, color: 'bg-secondary-500' },
     { label: 'Paket Usaha Terjual', value: `${stats.packagesSold}`, icon: Package, color: 'bg-primary-700' },
     { label: 'Produk Ready', value: stats.readyProducts.toString(), icon: Package, color: 'bg-success-600' },
     { label: 'Produk Sold Out', value: stats.soldProducts.toString(), icon: TrendingDown, color: 'bg-neutral-700' },
@@ -180,7 +166,7 @@ export default function AdminDashboard() {
     { label: 'Laba Kotor', value: formatIDR(stats.grossProfit), icon: TrendingUp, color: 'bg-success-600' },
     { label: 'Nilai Inventory', value: formatIDR(stats.inventoryValue), icon: Package, color: 'bg-primary-700' },
     { label: 'Avg Order Value', value: formatIDR(stats.avgOrderValue), icon: DollarSign, color: 'bg-secondary-600' },
-    { label: 'Stok Menipis', value: stats.lowStock.toString(), icon: AlertTriangle, color: 'bg-error-500' },
+    { label: 'Produk Reserved', value: stats.lowStock.toString(), icon: AlertTriangle, color: 'bg-warning-500' },
   ];
 
   if (loading) {
@@ -216,7 +202,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-white/80">Barang Terjual Hari Ini</p>
-              <p className="mt-2 text-2xl font-bold">{stats.todaySold} pcs</p>
+              <p className="mt-2 text-2xl font-bold">{stats.todaySold} item</p>
             </div>
             <CheckCircle size={32} className="text-white/70" />
           </div>
@@ -224,8 +210,8 @@ export default function AdminDashboard() {
         <div className="rounded-2xl bg-gradient-to-br from-secondary-500 to-secondary-600 p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-white/80">Total Stok Barang</p>
-              <p className="mt-2 text-2xl font-bold">{stats.totalStock} pcs</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-white/80">Produk Tersedia</p>
+              <p className="mt-2 text-2xl font-bold">{stats.totalStock} item</p>
             </div>
             <Warehouse size={32} className="text-white/70" />
           </div>
@@ -340,9 +326,9 @@ export default function AdminDashboard() {
         </div>
 
         <div className="card p-5">
-          <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Stok Menipis</h2>
+          <h2 className="mb-4 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">Produk Reserved</h2>
           {lowStockProducts.length === 0 ? (
-            <p className="text-sm text-neutral-400">Semua stok aman</p>
+            <p className="text-sm text-neutral-400">Tidak ada produk reserved</p>
           ) : (
             <div className="space-y-3">
               {lowStockProducts.map((p) => (
@@ -351,9 +337,7 @@ export default function AdminDashboard() {
                     <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{p.name}</p>
                     <p className="text-xs text-neutral-500">{p.product_code}</p>
                   </div>
-                  <span className={`badge ${p.stock === 0 ? 'bg-error-100 text-error-700' : 'bg-warning-100 text-warning-700'}`}>
-                    {p.stock === 0 ? 'Habis' : `Sisa ${p.stock}`}
-                  </span>
+                  <span className="badge bg-warning-100 text-warning-700">Reserved</span>
                 </div>
               ))}
             </div>

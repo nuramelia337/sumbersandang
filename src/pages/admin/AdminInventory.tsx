@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatIDR, genPONumber } from '../../lib/constants';
 import { Plus, X, ArrowDown, Package } from 'lucide-react';
-import type { Product, InventoryMovement, PurchaseOrder } from '../../lib/types';
+import type { Product, InventoryMovement, ProductAvailabilityStatus, PurchaseOrder } from '../../lib/types';
 import CurrencyInput from '../../components/CurrencyInput';
+import { AVAILABILITY_LABELS, productAvailabilityFromStock } from '../../lib/business';
 
 export default function AdminInventory() {
   const [tab, setTab] = useState<'movements' | 'po'>('movements');
@@ -13,7 +14,7 @@ export default function AdminInventory() {
   const [loading, setLoading] = useState(true);
   const [showAdjust, setShowAdjust] = useState(false);
   const [showPO, setShowPO] = useState(false);
-  const [adjustForm, setAdjustForm] = useState({ product_id: '', type: 'in', quantity: 0, notes: '' });
+  const [adjustForm, setAdjustForm] = useState({ product_id: '', availability_status: 'ready' as ProductAvailabilityStatus, notes: '' });
   const [poForm, setPoForm] = useState({
     supplier_name: '', supplier_phone: '', supplier_address: '',
     items: [{ product_name: '', category: '', quantity: 1, unit_cost: 0 }],
@@ -40,36 +41,32 @@ export default function AdminInventory() {
     e.preventDefault();
     const product = products.find((p) => p.id === adjustForm.product_id);
     if (!product) return;
-    const qty = Number(adjustForm.quantity);
     const before = product.stock;
-    let after = before;
-    if (adjustForm.type === 'in') after = before + qty;
-    else if (adjustForm.type === 'out') after = Math.max(0, before - qty);
-    else if (adjustForm.type === 'adjustment') after = qty;
-    else if (adjustForm.type === 'damaged' || adjustForm.type === 'lost') after = Math.max(0, before - qty);
+    const after = adjustForm.availability_status === 'ready' ? 1 : 0;
+    const websiteStatus = adjustForm.availability_status === 'sold' ? 'sold_out' : 'active';
 
     await supabase.from('products').update({
       stock: after,
-      availability_status: after > 0 ? 'ready' : 'sold',
-      status: after > 0 ? 'active' : 'sold_out',
+      availability_status: adjustForm.availability_status,
+      status: websiteStatus,
       updated_at: new Date().toISOString(),
     }).eq('id', product.id);
     await supabase.from('inventory_movements').insert({
       product_id: product.id,
-      type: adjustForm.type,
-      quantity: qty,
+      type: 'adjustment',
+      quantity: Math.abs(after - before),
       quantity_before: before,
       quantity_after: after,
-      notes: adjustForm.notes,
+      notes: adjustForm.notes || `Status changed to ${AVAILABILITY_LABELS[adjustForm.availability_status]}`,
     });
     await supabase.from('activity_logs').insert({
       action: 'inventory_adjusted',
       entity_type: 'product',
       entity_id: product.id,
-      description: `Stock adjusted: ${product.name} ${before} -> ${after}`,
+      description: `Product status adjusted: ${product.name} -> ${AVAILABILITY_LABELS[adjustForm.availability_status]}`,
     });
     setShowAdjust(false);
-    setAdjustForm({ product_id: '', type: 'in', quantity: 0, notes: '' });
+    setAdjustForm({ product_id: '', availability_status: 'ready', notes: '' });
     loadData();
   };
 
@@ -119,27 +116,13 @@ export default function AdminInventory() {
   };
 
   const receivePO = async (po: PurchaseOrder) => {
-    const { data: items } = await supabase.from('purchase_order_items').select('*').eq('po_id', po.id);
-    if (!items) return;
-    for (const item of items) {
-      const existing = products.find((p) => p.name === item.product_name);
-      if (existing) {
-        const before = existing.stock;
-        const after = before + item.quantity;
-        await supabase.from('products').update({ stock: after, availability_status: 'ready', status: 'active', updated_at: new Date().toISOString() }).eq('id', existing.id);
-        await supabase.from('inventory_movements').insert({
-          product_id: existing.id,
-          type: 'in',
-          quantity: item.quantity,
-          quantity_before: before,
-          quantity_after: after,
-          reference_type: 'purchase_order',
-          reference_id: po.id,
-          notes: `PO ${po.po_number} received`,
-        });
-      }
-    }
     await supabase.from('purchase_orders').update({ status: 'received', received_at: new Date().toISOString() }).eq('id', po.id);
+    await supabase.from('activity_logs').insert({
+      action: 'po_received',
+      entity_type: 'purchase_order',
+      entity_id: po.id,
+      description: `PO ${po.po_number} marked received. Create each unique product from the Produk menu.`,
+    });
     loadData();
   };
 
@@ -157,11 +140,11 @@ export default function AdminInventory() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Inventory</h1>
-          <p className="text-sm text-neutral-500">Kelola stok dan purchase orders</p>
+          <p className="text-sm text-neutral-500">Kelola status barang unik dan purchase orders</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowAdjust(true)} className="btn-secondary">
-            <ArrowDown size={16} /> Adjust Stok
+            <ArrowDown size={16} /> Ubah Status
           </button>
           <button onClick={() => setShowPO(true)} className="btn-primary">
             <Plus size={16} /> Purchase Order
@@ -325,7 +308,7 @@ export default function AdminInventory() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAdjust(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 dark:bg-neutral-900" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-xl font-bold">Adjust Stok</h2>
+              <h2 className="font-serif text-xl font-bold">Ubah Status Produk</h2>
               <button onClick={() => setShowAdjust(false)}><X size={20} /></button>
             </div>
             <form onSubmit={handleAdjust} className="space-y-4">
@@ -333,24 +316,20 @@ export default function AdminInventory() {
                 <label className="mb-1 block text-sm font-medium">Produk</label>
                 <select required value={adjustForm.product_id} onChange={(e) => setAdjustForm({ ...adjustForm, product_id: e.target.value })} className="input-field">
                   <option value="">Pilih produk</option>
-                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>)}
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({AVAILABILITY_LABELS[productAvailabilityFromStock(p)]})</option>)}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Tipe</label>
-                <select value={adjustForm.type} onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value })} className="input-field">
-                  <option value="in">Barang Masuk</option>
-                  <option value="out">Barang Keluar</option>
-                  <option value="adjustment">Adjustment</option>
-                  <option value="damaged">Rusak</option>
-                  <option value="lost">Hilang</option>
-                  <option value="return">Retur</option>
+                <label className="mb-1 block text-sm font-medium">Status Baru</label>
+                <select value={adjustForm.availability_status} onChange={(e) => setAdjustForm({ ...adjustForm, availability_status: e.target.value as ProductAvailabilityStatus })} className="input-field">
+                  <option value="ready">Ready (stok 1)</option>
+                  <option value="reserved">Reserved (stok 0)</option>
+                  <option value="sold">Sold (stok 0)</option>
                 </select>
               </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Jumlah</label>
-                <input required type="number" value={adjustForm.quantity} onChange={(e) => setAdjustForm({ ...adjustForm, quantity: Number(e.target.value) })} className="input-field" />
-              </div>
+              <p className="rounded-xl bg-primary-50 px-4 py-3 text-sm text-secondary-700 dark:bg-secondary-950 dark:text-primary-100">
+                Stok otomatis mengikuti status: Ready = 1 item, Reserved/Sold = 0 item.
+              </p>
               <div>
                 <label className="mb-1 block text-sm font-medium">Catatan</label>
                 <input type="text" value={adjustForm.notes} onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.target.value })} className="input-field" />

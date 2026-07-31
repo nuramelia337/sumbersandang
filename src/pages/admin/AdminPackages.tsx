@@ -51,7 +51,7 @@ export default function AdminPackages() {
     setLoading(true);
     const [pkgs, prods, cats] = await Promise.all([
       loadPackages(true),
-      supabase.from('products').select('*').neq('availability_status', 'sold').order('name'),
+      supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('name'),
       supabase.from('categories').select('*').order('sort_order'),
     ]);
     setPackages(pkgs);
@@ -129,8 +129,10 @@ export default function AdminPackages() {
 
   const savePackage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.product_ids.length === 0) {
-      showAlert({ title: 'Produk belum dipilih', message: 'Pilih minimal satu produk untuk paket.', variant: 'warning' });
+    const availableProductIds = new Set(products.map((product) => product.id));
+    const packageProductIds = (form.product_ids as string[]).filter((id) => availableProductIds.has(id));
+    if (packageProductIds.length === 0) {
+      showAlert({ title: 'Produk belum dipilih', message: 'Pilih minimal satu produk Ready untuk paket.', variant: 'warning' });
       return;
     }
     setSaving(true);
@@ -175,7 +177,7 @@ export default function AdminPackages() {
       return;
     }
 
-    const { error: insertItemsError } = await supabase.from('business_package_items').insert(form.product_ids.map((product_id: string) => ({ package_id: packageId, product_id })));
+    const { error: insertItemsError } = await supabase.from('business_package_items').insert(packageProductIds.map((product_id: string) => ({ package_id: packageId, product_id })));
     if (insertItemsError) {
       showAlert({ title: 'Gagal menyimpan isi paket', message: insertItemsError.message, variant: 'error' });
       setSaving(false);

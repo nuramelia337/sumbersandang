@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { formatIDR, formatDate } from '../../lib/constants';
 import { Download, TrendingUp, DollarSign, Package, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { orderCountsAsRevenue, PAYMENT_LABELS } from '../../lib/business';
+import { AVAILABILITY_LABELS, orderCountsAsRevenue, PAYMENT_LABELS, productAvailabilityFromStock } from '../../lib/business';
 
 export default function AdminReports() {
   const [reportType, setReportType] = useState<'sales' | 'profit' | 'inventory' | 'customer'>('sales');
@@ -62,7 +62,7 @@ export default function AdminReports() {
         order: p.product_code,
         customer: p.name,
         total: p.selling_price,
-        status: p.stock <= p.min_stock ? 'Low Stock' : `${p.stock} pcs`,
+        status: AVAILABILITY_LABELS[productAvailabilityFromStock(p)],
         payment: p.condition,
       })));
     } else {

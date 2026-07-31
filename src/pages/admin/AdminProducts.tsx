@@ -142,6 +142,7 @@ export default function AdminProducts() {
     }
 
     const availability = form.availability_status as ProductAvailabilityStatus;
+    const normalizedStock = availability === 'ready' ? 1 : 0;
     const websiteStatus = availability === 'sold'
       ? 'sold_out'
       : form.status === 'inactive'
@@ -158,7 +159,7 @@ export default function AdminProducts() {
       description: form.description || null,
       purchase_price: Number(form.purchase_price),
       selling_price: Number(form.selling_price),
-      stock: availability === 'sold' ? 0 : Number(form.stock),
+      stock: normalizedStock,
       min_stock: 1,
       images,
       image_path: images[0] || editing?.image_path || null,
@@ -183,15 +184,15 @@ export default function AdminProducts() {
       return;
     }
 
-    if (!editing && Number(form.stock) > 0) {
+    if (!editing && normalizedStock > 0) {
       const { data: newProd } = await supabase.from('products').select('id').eq('product_code', productCode).maybeSingle();
       if (newProd) {
         await supabase.from('inventory_movements').insert({
           product_id: newProd.id,
           type: 'in',
-          quantity: Number(form.stock),
+          quantity: normalizedStock,
           quantity_before: 0,
-          quantity_after: Number(form.stock),
+          quantity_after: normalizedStock,
           notes: 'Initial stock',
         });
       }
@@ -477,7 +478,9 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium">Stok</label>
-                  <input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="input-field" />
+                  <div className="rounded-xl border border-primary-100 bg-primary-50 px-4 py-2.5 text-sm text-secondary-800 dark:border-secondary-800 dark:bg-secondary-950 dark:text-primary-100">
+                    {form.availability_status === 'ready' ? 'Otomatis 1 item' : 'Otomatis 0 item'}
+                  </div>
                 </div>
               </div>
 

@@ -46,11 +46,6 @@ export default function ProductCard({ product, onClick }: Props) {
             </span>
           </div>
         )}
-        {available && product.stock > 0 && product.stock <= product.min_stock && (
-          <div className="absolute bottom-3 left-3">
-            <span className="badge bg-warning-500 text-white">Sisa {product.stock}</span>
-          </div>
-        )}
         <button
           onClick={(e) => { e.stopPropagation(); addItem(product); }}
           disabled={!available}

@@ -129,6 +129,7 @@ export default function Checkout({ onNavigate }: Props) {
   const confirmWhatsApp = async () => {
     if (items.length === 0) return;
     setLoading(true);
+    let createdOrderId: string | null = null;
 
     try {
     const orderNumber = genOrderNumber();
@@ -188,6 +189,7 @@ export default function Checkout({ onNavigate }: Props) {
       });
       return;
     }
+    createdOrderId = order.id;
 
     const orderItems = items.map((item) => {
       const unitPrice = getCartItemPrice(item);
@@ -199,10 +201,10 @@ export default function Checkout({ onNavigate }: Props) {
           package_id: item.package.id,
           product_code: item.package.package_code,
           product_name: item.package.name,
-          quantity: item.quantity,
+          quantity: 1,
           unit_price: unitPrice,
           purchase_price: computePackageCogs(item.package),
-          subtotal: unitPrice * item.quantity,
+          subtotal: unitPrice,
           package_items_snapshot: item.package.business_package_items || [],
         };
       }
@@ -213,10 +215,10 @@ export default function Checkout({ onNavigate }: Props) {
         package_id: null,
         product_code: item.product.product_code,
         product_name: item.product.name,
-        quantity: item.quantity,
+        quantity: 1,
         unit_price: unitPrice,
         purchase_price: item.product.purchase_price,
-        subtotal: unitPrice * item.quantity,
+        subtotal: unitPrice,
         package_items_snapshot: [],
       };
     });
@@ -273,6 +275,9 @@ export default function Checkout({ onNavigate }: Props) {
     clearCart();
     setStep('success');
     } catch (err) {
+      if (createdOrderId) {
+        await supabase.from('orders').delete().eq('id', createdOrderId);
+      }
       showAlert({
         title: 'Gagal membuat pesanan',
         message: err instanceof Error ? err.message : 'Terjadi kesalahan saat membuat pesanan.',

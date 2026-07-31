@@ -43,7 +43,7 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
         return;
       }
 
-      let q = supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').gt('stock', 0);
+      let q = supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1);
       if (selectedCat !== 'all') {
         const cat = categories.find((c) => c.slug === selectedCat);
         if (cat) q = q.eq('category_id', cat.id);

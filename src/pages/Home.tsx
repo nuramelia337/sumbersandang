@@ -23,8 +23,8 @@ export default function Home({ onNavigate }: Props) {
   useEffect(() => {
     (async () => {
       const [feat, lat, cats, pkgs, quotes, banner] = await Promise.all([
-        supabase.from('products').select('*').eq('is_featured', true).eq('status', 'active').eq('availability_status', 'ready').gt('stock', 0).limit(4),
-        supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').gt('stock', 0).order('created_at', { ascending: false }).limit(8),
+        supabase.from('products').select('*').eq('is_featured', true).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).limit(4),
+        supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('created_at', { ascending: false }).limit(8),
         supabase.from('categories').select('*').order('sort_order'),
         loadPublicPackages(6),
         loadTestimonials(),
