@@ -16,6 +16,7 @@ import Rules from './pages/Rules';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './pages/admin/AdminLayout';
 import { supabase } from './lib/supabase';
+import { releaseExpiredKeeps } from './lib/business';
 
 type Page = 'home' | 'shop' | 'product' | 'checkout' | 'about' | 'contact' | 'rules' | 'admin' | 'wishlist';
 
@@ -49,6 +50,12 @@ function App() {
   const [search, setSearch] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    releaseExpiredKeeps().catch(() => {
+      // Non-blocking; old keeps will also be cleaned from admin pages.
+    });
+  }, []);
 
   useEffect(() => {
     let mounted = true;

@@ -2,7 +2,7 @@ import { CheckCircle, Clock, PackageCheck, Truck } from 'lucide-react';
 
 const rules = [
   'Sistem mix diperbolehkan (bebas memilih berbagai produk dalam satu pesanan).',
-  'Keep barang tanpa pembayaran maksimal 1 x 24 jam.',
+  'Keep barang tanpa konfirmasi admin maksimal 3 hari.',
   'Keep barang yang sudah melakukan pembayaran (DP atau pelunasan) maksimal 7 hari.',
   'Barang yang sudah dibeli tidak dapat ditukar atau dikembalikan (No Return & No Refund), kecuali terjadi kesalahan dari pihak toko.',
   'Semua barang telah dicek sebelum dikirim.',
@@ -27,7 +27,7 @@ export default function Rules() {
       <section className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-3">
           {[
-            { icon: Clock, label: 'Keep 1x24 jam' },
+            { icon: Clock, label: 'Keep 3 hari' },
             { icon: PackageCheck, label: 'No Return & Refund' },
             { icon: Truck, label: 'JNT, SPX, Maxim' },
           ].map((item) => (

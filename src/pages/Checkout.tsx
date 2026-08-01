@@ -173,7 +173,7 @@ export default function Checkout({ onNavigate }: Props) {
       payment_method: form.payment,
       payment_status: 'pending',
       order_status: 'pending',
-      keep_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      keep_expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
       keep_status: 'active',
       shipping_note: form.shipping === 'pickup' ? `${form.pickupDate} ${form.pickupTime}` : null,
       coupon_code: form.coupon || null,
@@ -577,7 +577,7 @@ export default function Checkout({ onNavigate }: Props) {
             <label className="mt-5 flex items-start gap-3 rounded-xl bg-neutral-50 p-4 text-sm dark:bg-neutral-800">
               <input type="checkbox" checked={agreedRules} onChange={(e) => setAgreedRules(e.target.checked)} className="mt-1 h-4 w-4" />
               <span className="text-neutral-600 dark:text-neutral-300">
-                Saya sudah membaca dan menyetujui seluruh Rules Belanja, termasuk keep 1x24 jam, no return & no refund.
+                Saya sudah membaca dan menyetujui seluruh Rules Belanja, termasuk keep maksimal 3 hari, no return & no refund.
               </span>
             </label>
           </div>

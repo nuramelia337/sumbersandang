@@ -378,6 +378,12 @@ export async function reserveOrderItems(orderId: string) {
   if (error) throw new Error(error.message);
 }
 
+export async function releaseExpiredKeeps(): Promise<number> {
+  const { data, error } = await supabase.rpc('release_expired_keeps');
+  if (error) throw new Error(error.message);
+  return Number(data || 0);
+}
+
 export async function loadBackupData() {
   const [products, packages, packageItems, orders, orderItems, customers, movements, settings, testimonials, logs, ledger, financeSettings] = await Promise.all([
     supabase.from('products').select('*'),
