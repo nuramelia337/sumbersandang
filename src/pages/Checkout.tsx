@@ -264,7 +264,7 @@ export default function Checkout({ onNavigate }: Props) {
     setSuccessPickupTime(form.pickupTime);
     setSuccessItems(items);
     const autoProductLines = items.map((item) => {
-      const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
+      const image = item.kind === 'product' ? getProductImageUrl(item.product, 'original') : packageImageUrl(item.package, 'original');
       return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
     }).join('\n');
     const autoPaymentText = PAYMENT_LABELS[form.payment as keyof typeof PAYMENT_LABELS] || form.payment;
@@ -292,7 +292,7 @@ export default function Checkout({ onNavigate }: Props) {
     const paymentText = PAYMENT_LABELS[successPayment as keyof typeof PAYMENT_LABELS] || successPayment;
     const shippingText = SHIPPING_LABELS[successShipping as keyof typeof SHIPPING_LABELS] || successShipping;
     const productLines = successItems.map((item) => {
-      const image = item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package);
+      const image = item.kind === 'product' ? getProductImageUrl(item.product, 'original') : packageImageUrl(item.package, 'original');
       return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
     }).join('\n');
     const waMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\n\n==========================`;
@@ -609,6 +609,8 @@ export default function Checkout({ onNavigate }: Props) {
                   <img
                     src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
                     alt={getCartItemName(item)}
+                    loading="lazy"
+                    decoding="async"
                     className="h-16 w-16 rounded-lg object-cover"
                   />
                   <div className="flex-1">

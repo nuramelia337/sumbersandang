@@ -5,7 +5,16 @@ import { supabase } from '../lib/supabase';
 import type { BusinessPackage, Product, Category, PromoBannerSetting, Testimonial } from '../lib/types';
 import ProductCard from '../components/ProductCard';
 import PackageCard from '../components/PackageCard';
-import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadPublicPackages, loadTestimonials, PRODUCT_CATEGORY_COPY, PRODUCT_CATEGORY_SLUGS } from '../lib/business';
+import {
+  DEFAULT_PROMO_BANNER,
+  loadPromoBanner,
+  loadPublicPackages,
+  loadTestimonials,
+  PRODUCT_CATEGORY_COPY,
+  PRODUCT_CATEGORY_SLUGS,
+  PUBLIC_CATEGORY_SELECT,
+  PUBLIC_PRODUCT_CARD_SELECT,
+} from '../lib/business';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -23,15 +32,15 @@ export default function Home({ onNavigate }: Props) {
   useEffect(() => {
     (async () => {
       const [feat, lat, cats, pkgs, quotes, banner] = await Promise.all([
-        supabase.from('products').select('*').eq('is_featured', true).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).limit(4),
-        supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('created_at', { ascending: false }).limit(8),
-        supabase.from('categories').select('*').order('sort_order'),
+        supabase.from('products').select(PUBLIC_PRODUCT_CARD_SELECT).eq('is_featured', true).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).limit(4),
+        supabase.from('products').select(PUBLIC_PRODUCT_CARD_SELECT).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('created_at', { ascending: false }).limit(8),
+        supabase.from('categories').select(PUBLIC_CATEGORY_SELECT).order('sort_order'),
         loadPublicPackages(6),
         loadTestimonials(),
         loadPromoBanner(),
       ]);
-      setFeatured(feat.data || []);
-      setLatest(lat.data || []);
+      setFeatured((feat.data || []) as unknown as Product[]);
+      setLatest((lat.data || []) as unknown as Product[]);
       setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
       setPackages(pkgs);
       setTestimonials(quotes);

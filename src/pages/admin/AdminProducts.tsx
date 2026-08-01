@@ -131,9 +131,12 @@ export default function AdminProducts() {
       return;
     }
     let images = editing?.images || [];
+    let thumbnailPath = editing?.thumbnail_path || null;
     if (imageFiles.length > 0) {
       try {
-        images = await uploadProductImages(imageFiles, productCode);
+        const uploaded = await uploadProductImages(imageFiles, productCode);
+        images = uploaded.images;
+        thumbnailPath = uploaded.thumbnailPath;
       } catch (err: any) {
         showAlert({ title: 'Upload foto gagal', message: err.message, variant: 'error' });
         setSaving(false);
@@ -163,6 +166,7 @@ export default function AdminProducts() {
       min_stock: 1,
       images,
       image_path: images[0] || editing?.image_path || null,
+      thumbnail_path: thumbnailPath,
       tags: [],
       is_featured: Boolean(form.is_featured),
       status: websiteStatus,
@@ -316,7 +320,7 @@ export default function AdminProducts() {
             return (
               <div key={p.id} className="card p-4">
                 <div className="flex gap-3">
-                  <img src={getProductImageUrl(p)} alt={p.name} className="h-20 w-20 shrink-0 rounded-xl bg-neutral-50 object-contain" />
+                  <img src={getProductImageUrl(p)} alt={p.name} loading="lazy" decoding="async" className="h-20 w-20 shrink-0 rounded-xl bg-neutral-50 object-contain" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs text-primary-600">{p.product_code}</span>
@@ -367,7 +371,7 @@ export default function AdminProducts() {
                     <tr key={p.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <img src={getProductImageUrl(p)} alt={p.name} className="h-12 w-12 rounded-lg bg-neutral-50 object-contain" />
+                          <img src={getProductImageUrl(p)} alt={p.name} loading="lazy" decoding="async" className="h-12 w-12 rounded-lg bg-neutral-50 object-contain" />
                           <div>
                             <p className="font-medium text-neutral-900 dark:text-neutral-100">{p.name}</p>
                             <p className="text-xs text-neutral-500">{p.brand || '-'} {p.internal_notes ? '· Ada catatan' : ''}</p>

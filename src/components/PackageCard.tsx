@@ -16,7 +16,7 @@ export default function PackageCard({ pkg }: Props) {
   return (
     <div className="group card overflow-hidden">
       <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
-        <img src={packageImageUrl(pkg)} alt={pkg.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <img src={packageImageUrl(pkg)} alt={pkg.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         <div className="absolute left-3 top-3 flex gap-2">
           {pkg.is_featured && <span className="badge bg-accent-400 text-secondary-950">Featured</span>}
           <span className={`badge ${itemStatusColor(pkg.availability_status)}`}>{AVAILABILITY_LABELS[pkg.availability_status]}</span>

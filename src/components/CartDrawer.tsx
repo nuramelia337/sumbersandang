@@ -62,6 +62,8 @@ export default function CartDrawer({ onCheckout }: Props) {
                     <img
                       src={item.kind === 'product' ? getProductImageUrl(item.product) : packageImageUrl(item.package)}
                       alt={getCartItemName(item)}
+                      loading="lazy"
+                      decoding="async"
                       className="h-20 w-20 rounded-lg object-cover"
                     />
                     <div className="flex-1">

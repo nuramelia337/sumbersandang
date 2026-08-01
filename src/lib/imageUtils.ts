@@ -122,15 +122,27 @@ export async function removeBackground(file: File, tolerance = 38, feather = 2):
   });
 }
 
-export function getProductImageUrl(product: { image_path?: string | null; images?: string[] }): string {
+function storageUrl(path?: string | null): string {
+  if (!path) return '';
+  if (/^https?:\/\//.test(path)) return path;
+  return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/products/${path}`;
+}
+
+export function getProductImageUrl(
+  product: { image_path?: string | null; thumbnail_path?: string | null; images?: string[] },
+  variant: 'thumbnail' | 'original' = 'thumbnail',
+): string {
+  if (variant === 'thumbnail' && product.thumbnail_path) {
+    return storageUrl(product.thumbnail_path);
+  }
   if (product.image_path) {
     if (/^https?:\/\//.test(product.image_path)) return product.image_path;
-    return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/products/${product.image_path}`;
+    return storageUrl(product.image_path);
   }
   if (product.images && product.images.length > 0) {
     const first = product.images[0];
     if (/^https?:\/\//.test(first)) return first;
-    return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/products/${first}`;
+    return storageUrl(first);
   }
   return 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=600';
 }

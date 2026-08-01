@@ -16,7 +16,7 @@ import {
   PRODUCT_CATEGORY_COPY,
   PRODUCT_CATEGORY_SLUGS,
   productAvailabilityFromStock,
-  uploadImage,
+  uploadImageWithThumbnail,
 } from '../../lib/business';
 
 const emptyForm = {
@@ -137,9 +137,12 @@ export default function AdminPackages() {
     }
     setSaving(true);
     let coverPath = editing?.cover_image_path || null;
+    let thumbnailPath = editing?.thumbnail_path || null;
     if (coverBlob) {
       try {
-        coverPath = await uploadImage(coverBlob, 'packages');
+        const uploadedCover = await uploadImageWithThumbnail(coverBlob, 'packages');
+        coverPath = uploadedCover.path;
+        thumbnailPath = uploadedCover.thumbnailPath;
       } catch (err: any) {
         showAlert({ title: 'Upload cover gagal', message: err.message, variant: 'error' });
         setSaving(false);
@@ -152,6 +155,7 @@ export default function AdminPackages() {
       description: form.description || null,
       price: Number(form.price),
       cover_image_path: coverPath,
+      thumbnail_path: thumbnailPath,
       is_featured: Boolean(form.is_featured),
       availability_status: form.availability_status,
       status: form.availability_status === 'sold' ? 'sold_out' : form.status,
@@ -255,7 +259,7 @@ export default function AdminPackages() {
           {filtered.map((pkg) => (
             <div key={pkg.id} className="card overflow-hidden">
               <div className="flex gap-4 p-4">
-                <img src={packageImageUrl(pkg)} alt={pkg.name} className="h-28 w-32 rounded-xl object-cover" />
+                <img src={packageImageUrl(pkg)} alt={pkg.name} loading="lazy" decoding="async" className="h-28 w-32 rounded-xl object-cover" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs text-primary-600">{pkg.package_code}</span>

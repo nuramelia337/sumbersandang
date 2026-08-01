@@ -44,6 +44,7 @@ export interface Product {
   min_stock: number;
   images: string[];
   image_path?: string | null;
+  thumbnail_path?: string | null;
   video_url?: string;
   tags: string[];
   is_featured: boolean;
@@ -63,6 +64,7 @@ export interface BusinessPackage {
   description?: string | null;
   price: number;
   cover_image_path?: string | null;
+  thumbnail_path?: string | null;
   cover_image_url?: string | null;
   is_featured: boolean;
   availability_status: ProductAvailabilityStatus;

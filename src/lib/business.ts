@@ -75,6 +75,44 @@ export function normalizeStorageLocation(value?: string | null): StorageLocation
 
 export const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const TARGET_IMAGE_UPLOAD_BYTES = 700 * 1024;
+export const TARGET_THUMBNAIL_UPLOAD_BYTES = 80 * 1024;
+export const PUBLIC_PRODUCT_CARD_SELECT = [
+  'id',
+  'product_code',
+  'name',
+  'category_id',
+  'brand',
+  'size',
+  'color',
+  'condition',
+  'purchase_price',
+  'selling_price',
+  'stock',
+  'image_path',
+  'thumbnail_path',
+  'is_featured',
+  'status',
+  'availability_status',
+  'created_at',
+].join(',');
+export const PUBLIC_CATEGORY_SELECT = 'id,name,slug,description,image_url,sort_order,created_at';
+const PACKAGE_PRODUCT_SELECT = 'id,product_code,name,purchase_price,status,availability_status,stock';
+export const PUBLIC_PACKAGE_SELECT = [
+  'id',
+  'package_code',
+  'name',
+  'description',
+  'price',
+  'cover_image_path',
+  'cover_image_url',
+  'thumbnail_path',
+  'is_featured',
+  'availability_status',
+  'status',
+  'created_at',
+  'updated_at',
+  `business_package_items(id,package_id,product_id,created_at,product:products(${PACKAGE_PRODUCT_SELECT}))`,
+].join(',');
 
 export const DEFAULT_PROMO_BANNER: PromoBannerSetting = {
   title: 'Paket usaha thrift siap jual',
@@ -118,18 +156,44 @@ export function storageImageUrl(path?: string | null): string {
   return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/products/${path}`;
 }
 
-export function packageImageUrl(pkg: Pick<BusinessPackage, 'cover_image_path' | 'cover_image_url'>): string {
-  return storageImageUrl(pkg.cover_image_path) || pkg.cover_image_url || DEFAULT_PROMO_BANNER.image_url;
+export function packageImageUrl(
+  pkg: Pick<BusinessPackage, 'cover_image_path' | 'cover_image_url' | 'thumbnail_path'>,
+  variant: 'thumbnail' | 'original' = 'thumbnail',
+): string {
+  if (variant === 'thumbnail') {
+    return storageImageUrl(pkg.thumbnail_path) || storageImageUrl(pkg.cover_image_path) || pkg.cover_image_url || DEFAULT_PROMO_BANNER.image_url;
+  }
+  return storageImageUrl(pkg.cover_image_path) || pkg.cover_image_url || storageImageUrl(pkg.thumbnail_path) || DEFAULT_PROMO_BANNER.image_url;
 }
 
-export async function uploadImage(file: Blob, folder: string): Promise<string> {
-  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+export async function uploadStorageImage(path: string, file: Blob, contentType = file.type || 'image/jpeg'): Promise<string> {
   const { error } = await supabase.storage.from('products').upload(path, file, {
-    contentType: file.type || 'image/jpeg',
+    contentType,
+    cacheControl: '31536000',
     upsert: true,
   });
   if (error) throw new Error(`Upload gagal: ${error.message}`);
   return path;
+}
+
+export async function uploadImage(file: Blob, folder: string): Promise<string> {
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  return uploadStorageImage(path, file, file.type || 'image/jpeg');
+}
+
+export interface ImageUploadResult {
+  path: string;
+  thumbnailPath: string;
+}
+
+export async function uploadImageWithThumbnail(file: Blob, folder: string): Promise<ImageUploadResult> {
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const path = `${folder}/${stamp}.jpg`;
+  const thumbnailPath = `thumbnails/${folder}/${stamp}.webp`;
+  const thumbnail = await createThumbnailImage(file);
+  await uploadStorageImage(path, file, file.type || 'image/jpeg');
+  await uploadStorageImage(thumbnailPath, thumbnail, 'image/webp');
+  return { path, thumbnailPath };
 }
 
 export function formatFileSize(bytes: number): string {
@@ -165,6 +229,12 @@ function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob>
   });
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal memproses gambar'))), type, quality);
+  });
+}
+
 export async function optimizeImage(file: Blob, brightness = 1.08, targetBytes = TARGET_IMAGE_UPLOAD_BYTES): Promise<Blob> {
   const img = await loadImageElement(file);
   const maxSize = 1200;
@@ -191,6 +261,39 @@ export async function optimizeImage(file: Blob, brightness = 1.08, targetBytes =
     const smallerCtx = smaller.getContext('2d')!;
     smallerCtx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
     output = await canvasToJpeg(smaller, 0.68);
+  }
+
+  return output;
+}
+
+export async function createThumbnailImage(file: Blob, maxSize = 480, targetBytes = TARGET_THUMBNAIL_UPLOAD_BYTES): Promise<Blob> {
+  const img = await loadImageElement(file);
+  const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const qualities = [0.64, 0.58, 0.52, 0.46];
+  let output = await canvasToBlob(canvas, 'image/webp', qualities[0]);
+  for (const quality of qualities.slice(1)) {
+    if (output.size <= targetBytes) break;
+    output = await canvasToBlob(canvas, 'image/webp', quality);
+  }
+
+  if (output.size > targetBytes && Math.max(canvas.width, canvas.height) > 360) {
+    const smaller = document.createElement('canvas');
+    const shrink = 360 / Math.max(canvas.width, canvas.height);
+    smaller.width = Math.max(1, Math.round(canvas.width * shrink));
+    smaller.height = Math.max(1, Math.round(canvas.height * shrink));
+    const smallerCtx = smaller.getContext('2d')!;
+    smallerCtx.fillStyle = '#ffffff';
+    smallerCtx.fillRect(0, 0, smaller.width, smaller.height);
+    smallerCtx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
+    output = await canvasToBlob(smaller, 'image/webp', 0.52);
   }
 
   return output;
@@ -230,7 +333,7 @@ export async function loadTestimonials(includeInactive = false): Promise<Testimo
 
 export async function loadPackages(includeItems = false): Promise<BusinessPackage[]> {
   const select = includeItems
-    ? '*, business_package_items(*, product:products(*))'
+    ? `*, business_package_items(id,package_id,product_id,created_at,product:products(${PACKAGE_PRODUCT_SELECT}))`
     : '*';
   const { data } = await supabase.from('business_packages').select(select).order('created_at', { ascending: false });
   return (data || []) as unknown as BusinessPackage[];
@@ -239,7 +342,7 @@ export async function loadPackages(includeItems = false): Promise<BusinessPackag
 export async function loadPublicPackages(limit = 6): Promise<BusinessPackage[]> {
   const { data } = await supabase
     .from('business_packages')
-    .select('*, business_package_items(*, product:products(*))')
+    .select(PUBLIC_PACKAGE_SELECT)
     .eq('status', 'active')
     .eq('availability_status', 'ready')
     .order('is_featured', { ascending: false })

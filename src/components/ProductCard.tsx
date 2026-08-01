@@ -30,6 +30,7 @@ export default function ProductCard({ product, onClick }: Props) {
           src={img}
           alt={product.name}
           loading="lazy"
+          decoding="async"
           className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute left-3 top-3 flex gap-2">

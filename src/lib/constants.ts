@@ -1,3 +1,5 @@
+import { createThumbnailImage, uploadStorageImage } from './business';
+
 export const BRAND = {
   name: 'Sumber Sandang',
   tagline: 'Toko Baju Terlengkap',
@@ -62,24 +64,31 @@ export function formatDateTime(d: string | Date): string {
   return new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-import { supabase } from './supabase';
+export interface ProductImagesUploadResult {
+  images: string[];
+  thumbnailPath: string | null;
+}
 
 export async function uploadProductImage(file: Blob, productCode: string): Promise<string> {
   const path = `${productCode}-${Date.now()}.jpg`;
-  const { error } = await supabase.storage.from('products').upload(path, file, { contentType: 'image/jpeg', upsert: true });
-  if (error) throw new Error(`Upload gagal: ${error.message}`);
-  return path;
+  return uploadStorageImage(path, file, 'image/jpeg');
 }
 
-export async function uploadProductImages(files: Blob[], productCode: string): Promise<string[]> {
+export async function uploadProductImages(files: Blob[], productCode: string): Promise<ProductImagesUploadResult> {
   const uploaded: string[] = [];
+  let thumbnailPath: string | null = null;
   for (const [index, file] of files.entries()) {
-    const path = `${productCode}-${Date.now()}-${index}.jpg`;
-    const { error } = await supabase.storage.from('products').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: true });
-    if (error) throw new Error(`Upload gagal: ${error.message}`);
+    const stamp = `${Date.now()}-${index}`;
+    const path = `${productCode}-${stamp}.jpg`;
+    await uploadStorageImage(path, file, file.type || 'image/jpeg');
     uploaded.push(path);
+    if (index === 0) {
+      const thumbnail = await createThumbnailImage(file);
+      thumbnailPath = `thumbnails/products/${productCode}-${stamp}.webp`;
+      await uploadStorageImage(thumbnailPath, thumbnail, 'image/webp');
+    }
   }
-  return uploaded;
+  return { images: uploaded, thumbnailPath };
 }
 
 export const PAYMENT_METHODS = [
