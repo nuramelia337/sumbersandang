@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabase';
 import { formatDateTime, formatIDR, waMessageTo } from '../../lib/constants';
 import { Edit, Eye, MessageCircle, Search, Trash2, X } from 'lucide-react';
 import type { Order, OrderItem, PaymentMethod } from '../../lib/types';
-import { logActivity, PAYMENT_LABELS, SHIPPING_LABELS, transitionOrderInventory } from '../../lib/business';
+import { logActivity, packageImageUrl, PAYMENT_LABELS, SHIPPING_LABELS, transitionOrderInventory } from '../../lib/business';
 import { useAlert } from '../../components/AlertProvider';
+import { getProductImageUrl } from '../../lib/imageUtils';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-warning-100 text-warning-700',
@@ -27,6 +28,13 @@ function paymentLabel(method: string) {
 
 function shippingLabel(method: string) {
   return SHIPPING_LABELS[method as keyof typeof SHIPPING_LABELS] || method;
+}
+
+function orderItemImageUrl(item: OrderItem) {
+  if (item.item_type === 'package') {
+    return packageImageUrl(item.business_package || {}, 'thumbnail');
+  }
+  return getProductImageUrl(item.product || {}, 'thumbnail');
 }
 
 export default function AdminOrders() {
@@ -103,7 +111,14 @@ export default function AdminOrders() {
 
   const viewOrder = async (order: Order) => {
     setSelectedOrder(order);
-    const { data, error } = await supabase.from('order_items').select('*').eq('order_id', order.id);
+    const { data, error } = await supabase
+      .from('order_items')
+      .select(`
+        *,
+        product:products(id,product_code,name,image_path,thumbnail_path,images),
+        business_package:business_packages(id,package_code,name,cover_image_path,cover_image_url,thumbnail_path)
+      `)
+      .eq('order_id', order.id);
     if (error) {
       showAlert({ title: 'Gagal memuat detail pesanan', message: error.message, variant: 'error' });
       return;
@@ -352,16 +367,29 @@ export default function AdminOrders() {
 
             <div className="mt-4 card p-4">
               <h3 className="mb-3 text-sm font-semibold">Item Pesanan</h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {orderItems.map((item) => (
-                  <div key={item.id} className="flex justify-between border-b border-neutral-100 pb-2 dark:border-neutral-800">
-                    <div>
-                      <p className="text-sm font-medium">{item.product_name}</p>
-                      <p className="text-xs text-neutral-500">
-                        {item.item_type === 'package' ? 'Paket Usaha - ' : ''}{item.product_code} - {item.quantity}x {formatIDR(item.unit_price)}
+                  <div key={item.id} className="flex gap-3 border-b border-neutral-100 pb-3 last:border-0 last:pb-0 dark:border-neutral-800">
+                    <img
+                      src={orderItemImageUrl(item)}
+                      alt={item.product_name}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-16 w-16 shrink-0 rounded-xl bg-neutral-100 object-cover dark:bg-neutral-800"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">{item.product_name}</p>
+                        {item.item_type === 'package' && (
+                          <span className="rounded-full bg-accent-100 px-2 py-0.5 text-[10px] font-semibold text-accent-700 dark:bg-accent-900/30 dark:text-accent-300">Paket Usaha</span>
+                        )}
+                      </div>
+                      <p className="mt-1 font-mono text-xs font-semibold text-primary-600">{item.product_code}</p>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        {item.quantity}x {formatIDR(item.unit_price)}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold">{formatIDR(item.subtotal)}</p>
+                    <p className="shrink-0 text-right text-sm font-semibold text-neutral-900 dark:text-neutral-100">{formatIDR(item.subtotal)}</p>
                   </div>
                 ))}
               </div>

@@ -199,6 +199,8 @@ export interface OrderItem {
   purchase_price: number;
   subtotal: number;
   created_at: string;
+  product?: Pick<Product, 'id' | 'product_code' | 'name' | 'image_path' | 'thumbnail_path' | 'images'> | null;
+  business_package?: Pick<BusinessPackage, 'id' | 'package_code' | 'name' | 'cover_image_path' | 'cover_image_url' | 'thumbnail_path'> | null;
 }
 
 export interface InventoryMovement {
