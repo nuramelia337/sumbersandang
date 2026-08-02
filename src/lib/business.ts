@@ -123,6 +123,23 @@ export const DEFAULT_PROMO_BANNER: PromoBannerSetting = {
   is_active: true,
 };
 
+function normalizePromoBanner(value?: Partial<PromoBannerSetting> | null): PromoBannerSetting {
+  const banner = { ...DEFAULT_PROMO_BANNER, ...(value || {}) };
+  const title = banner.title?.trim();
+  const contactIdentifiers = [
+    'sumber.sandanggg',
+    'sumber.sandanggg@gmail.com',
+    '@sumber.sandanggg',
+  ];
+
+  return {
+    ...banner,
+    title: !title || contactIdentifiers.includes(title.toLowerCase())
+      ? DEFAULT_PROMO_BANNER.title
+      : title,
+  };
+}
+
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   bca: 'BCA',
   dana: 'DANA',
@@ -313,7 +330,7 @@ export async function logActivity(action: string, entityType?: string, entityId?
 
 export async function loadPromoBanner(): Promise<PromoBannerSetting> {
   const { data } = await supabase.from('site_settings').select('*').eq('key', 'promo_banner').maybeSingle<SiteSetting>();
-  return { ...DEFAULT_PROMO_BANNER, ...(data?.value || {}) } as PromoBannerSetting;
+  return normalizePromoBanner(data?.value as Partial<PromoBannerSetting> | null);
 }
 
 export async function savePromoBanner(value: PromoBannerSetting) {

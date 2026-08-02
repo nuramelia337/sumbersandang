@@ -111,8 +111,13 @@ export default function AdminWebsite() {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium">Judul</label>
-            <input value={banner.title} onChange={(e) => setBanner({ ...banner, title: e.target.value })} className="input-field" />
+            <label className="mb-1 block text-sm font-medium">Headline Utama</label>
+            <input
+              value={banner.title}
+              onChange={(e) => setBanner({ ...banner, title: e.target.value })}
+              className="input-field"
+              placeholder="Contoh: Paket usaha thrift siap jual"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Label Tombol</label>
