@@ -289,17 +289,44 @@ export interface FinanceSetting {
   updated_at: string;
 }
 
+export type CashLedgerType = 'initial' | 'in' | 'out' | 'operational';
+export type CashLedgerEntryKind =
+  | 'manual'
+  | 'order_sale'
+  | 'order_reversal'
+  | 'order_reinstatement'
+  | 'order_adjustment'
+  | 'legacy_initial';
+export type CashLedgerReferenceType = 'manual' | 'order' | string;
+
 export interface CashLedger {
   id: string;
-  type: 'initial' | 'in' | 'out' | 'operational';
+  type: CashLedgerType;
   amount: number;
+  cost_amount: number;
   description: string;
   payment_method?: PaymentMethod | null;
-  reference_type?: string | null;
+  reference_type?: CashLedgerReferenceType | null;
   reference_id?: string | null;
+  entry_kind?: CashLedgerEntryKind | null;
   transaction_date: string;
   created_at: string;
+  updated_at: string;
   created_by?: string | null;
+}
+
+export interface FinanceSummary {
+  baseOpeningBalance: number;
+  periodOpeningBalance: number;
+  cashIn: number;
+  cashOut: number;
+  closingBalance: number;
+  /** Kept for dashboard compatibility; identical to closingBalance. */
+  totalBalance: number;
+  grossSalesProfit: number;
+  netOperatingProfit: number;
+  operationalExpenses: number;
+  ledger: CashLedger[];
 }
 
 export interface ProductCartItem {

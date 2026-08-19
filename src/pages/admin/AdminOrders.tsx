@@ -92,8 +92,6 @@ export default function AdminOrders() {
       if (error) throw new Error(error.message);
 
       await transitionOrderInventory(id, status);
-      const { error: ledgerError } = await supabase.rpc('upsert_order_cash_ledger', { p_order_id: id });
-      if (ledgerError) throw new Error(ledgerError.message);
 
       await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
       loadOrders();
@@ -150,9 +148,6 @@ export default function AdminOrders() {
         .eq('id', editingPaymentOrder.id);
       if (error) throw new Error(error.message);
 
-      const { error: ledgerError } = await supabase.rpc('upsert_order_cash_ledger', { p_order_id: editingPaymentOrder.id });
-      if (ledgerError) throw new Error(ledgerError.message);
-
       await logActivity(
         'order_payment_method_updated',
         'order',
@@ -176,14 +171,11 @@ export default function AdminOrders() {
   const deleteOrder = (order: Order) => {
     showConfirm({
       title: 'Hapus pesanan?',
-      message: `Pesanan ${order.order_number} akan dihapus. Jika pesanan ini sudah masuk saldo, Total Uang Masuk akan berkurang sebesar ${formatIDR(order.total_amount)}.`,
+      message: `Pesanan ${order.order_number} akan dihapus. Jika sudah masuk saldo, sistem akan mencatat pembalikan sebesar ${formatIDR(order.total_amount)} agar histori keuangan tetap utuh.`,
       variant: 'error',
       confirmLabel: 'Hapus Pesanan',
       onConfirm: async () => {
         await transitionOrderInventory(order.id, 'cancelled');
-        const { error: ledgerError } = await supabase.from('cash_ledger').delete().eq('reference_type', 'order').eq('reference_id', order.id).eq('type', 'in');
-        if (ledgerError) throw new Error(ledgerError.message);
-
         const { error } = await supabase.from('orders').delete().eq('id', order.id);
         if (error) throw new Error(error.message);
 

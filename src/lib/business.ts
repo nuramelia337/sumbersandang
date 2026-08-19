@@ -4,6 +4,7 @@ import type {
   AdminProfile,
   BusinessPackage,
   CashLedger,
+  FinanceSummary,
   FinanceSetting,
   Order,
   PaymentMethod,
@@ -15,6 +16,7 @@ import type {
   StorageLocation,
   Testimonial,
 } from './types';
+import { calculateFinanceSummary } from './finance';
 
 export const AVAILABILITY_LABELS: Record<ProductAvailabilityStatus, string> = {
   ready: 'Ready',
@@ -434,48 +436,18 @@ export async function loadBackupData() {
   };
 }
 
-export async function loadFinanceSummary(dateFrom?: string, dateTo?: string) {
-  const [settingsRes, ledgerRes, ordersRes, itemsRes] = await Promise.all([
+export async function loadFinanceSummary(dateFrom?: string, dateTo?: string): Promise<FinanceSummary> {
+  const [settingsRes, ledgerRes] = await Promise.all([
     supabase.from('finance_settings').select('*'),
     supabase.from('cash_ledger').select('*').order('transaction_date', { ascending: false }),
-    supabase.from('orders').select('*'),
-    supabase.from('order_items').select('order_id, purchase_price, quantity'),
   ]);
+
+  if (settingsRes.error) throw new Error(`Gagal memuat pengaturan keuangan: ${settingsRes.error.message}`);
+  if (ledgerRes.error) throw new Error(`Gagal memuat riwayat transaksi: ${ledgerRes.error.message}`);
 
   const settings = (settingsRes.data || []) as FinanceSetting[];
   const openingBalance = Number(settings.find((s) => s.key === 'opening_balance')?.value || 0);
-  const ledger = ((ledgerRes.data || []) as CashLedger[]).filter((row) => {
-    if (dateFrom && row.transaction_date < dateFrom) return false;
-    if (dateTo && row.transaction_date > dateTo) return false;
-    return true;
-  });
-  const validOrders = (ordersRes.data || []).filter((o) => {
-    if (!orderCountsAsRevenue(o)) return false;
-    if (dateFrom && String(o.created_at).slice(0, 10) < dateFrom) return false;
-    if (dateTo && String(o.created_at).slice(0, 10) > dateTo) return false;
-    return true;
-  });
-  const validOrderIds = new Set(validOrders.map((o) => o.id));
-  const visibleLedger = ledger.filter((row) => {
-    if (row.reference_type !== 'order') return true;
-    return Boolean(row.reference_id && validOrderIds.has(row.reference_id));
-  });
-  const items = (itemsRes.data || []).filter((i) => validOrderIds.has(i.order_id));
-  const orderRevenue = validOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
-  const cogs = items.reduce((sum, item) => sum + Number(item.purchase_price || 0) * Number(item.quantity || 0), 0);
-  const manualIn = visibleLedger.filter((row) => row.type === 'in' && row.reference_type !== 'order').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const cashOut = visibleLedger.filter((row) => row.type === 'out' || row.type === 'operational').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const operational = visibleLedger.filter((row) => row.type === 'operational').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const cashIn = orderRevenue + manualIn;
-  return {
-    openingBalance,
-    cashIn,
-    cashOut,
-    totalBalance: openingBalance + cashIn - cashOut,
-    salesProfit: orderRevenue - cogs,
-    operationalExpenses: operational,
-    ledger: visibleLedger,
-  };
+  return calculateFinanceSummary(openingBalance, (ledgerRes.data || []) as CashLedger[], dateFrom, dateTo);
 }
 
 export function downloadJson(filename: string, data: unknown) {
