@@ -171,7 +171,7 @@ export default function AdminOrders() {
   const deleteOrder = (order: Order) => {
     showConfirm({
       title: 'Hapus pesanan?',
-      message: `Pesanan ${order.order_number} akan dihapus. Jika sudah masuk saldo, sistem akan mencatat pembalikan sebesar ${formatIDR(order.total_amount)} agar histori keuangan tetap utuh.`,
+      message: `Pesanan ${order.order_number} akan dihapus. Transaksi keuangan terkait senilai ${formatIDR(order.total_amount)} akan dibatalkan dari Kas Masuk/Kas Keluar, tetapi jejak audit tetap disimpan.`,
       variant: 'error',
       confirmLabel: 'Hapus Pesanan',
       onConfirm: async () => {

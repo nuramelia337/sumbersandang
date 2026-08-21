@@ -313,6 +313,9 @@ export interface CashLedger {
   created_at: string;
   updated_at: string;
   created_by?: string | null;
+  voided_at?: string | null;
+  voided_by?: string | null;
+  void_reason?: string | null;
 }
 
 export interface FinanceSummary {

@@ -95,6 +95,27 @@ describe('calculateFinanceSummary', () => {
     expect(result.grossSalesProfit).toBe(400);
     expect(result.closingBalance).toBe(1_000);
   });
+
+  it('excludes voided order entries from cash totals while retaining active entries', () => {
+    const voidedAt = '2026-08-21T10:00:00.000Z';
+    const result = calculateFinanceSummary(0, [
+      ledger({
+        type: 'in', amount: 95_000, cost_amount: 40_000,
+        reference_type: 'order', entry_kind: 'order_sale', voided_at: voidedAt,
+      }),
+      ledger({
+        type: 'out', amount: 95_000, cost_amount: 40_000,
+        reference_type: 'order', entry_kind: 'order_reversal', voided_at: voidedAt,
+      }),
+      ledger({ type: 'in', amount: 20_000 }),
+    ]);
+
+    expect(result.cashIn).toBe(20_000);
+    expect(result.cashOut).toBe(0);
+    expect(result.grossSalesProfit).toBe(0);
+    expect(result.closingBalance).toBe(20_000);
+    expect(result.ledger).toHaveLength(1);
+  });
 });
 
 describe('finance dates', () => {

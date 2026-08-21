@@ -49,10 +49,11 @@ export function calculateFinanceSummary(
 ): FinanceSummary {
   validateFinanceDateRange(dateFrom, dateTo);
 
+  const activeLedger = allLedger.filter((row) => !row.voided_at);
   const beforePeriod = dateFrom
-    ? allLedger.filter((row) => row.transaction_date < dateFrom)
+    ? activeLedger.filter((row) => row.transaction_date < dateFrom)
     : [];
-  const ledger = allLedger.filter((row) => {
+  const ledger = activeLedger.filter((row) => {
     if (dateFrom && row.transaction_date < dateFrom) return false;
     if (dateTo && row.transaction_date > dateTo) return false;
     return true;
