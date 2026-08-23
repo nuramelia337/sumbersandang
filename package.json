@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
     "backfill:thumbnails": "node scripts/backfill-thumbnails.mjs",
+    "audit:storage": "node scripts/audit-storage-orphans.mjs",
+    "migrate:banner": "node scripts/migrate-active-banner.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

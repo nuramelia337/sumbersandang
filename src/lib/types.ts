@@ -45,6 +45,7 @@ export interface Product {
   images: string[];
   image_path?: string | null;
   thumbnail_path?: string | null;
+  image_thumbnail_paths?: string[];
   video_url?: string;
   tags: string[];
   is_featured: boolean;
@@ -72,6 +73,7 @@ export interface BusinessPackage {
   internal_notes?: string | null;
   created_at: string;
   updated_at: string;
+  item_count?: number;
   business_package_items?: BusinessPackageItem[];
 }
 

@@ -1,0 +1,15 @@
+project_id = "sumber-sandang"
+
+[functions.create-order]
+verify_jwt = false
+
+[functions.sheet-sync-worker]
+verify_jwt = false
+
+[functions.media-cleanup]
+verify_jwt = false
+
+# The legacy public endpoint is intentionally protected. New orders are queued
+# by create-order and processed by sheet-sync-worker.
+[functions.sync-sheets]
+verify_jwt = true

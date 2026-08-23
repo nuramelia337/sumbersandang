@@ -1,11 +1,11 @@
 import { useRef, useState, useCallback } from 'react';
 import { Camera, Upload, Image as ImageIcon, Wand2, X, Check, Loader2 } from 'lucide-react';
 import { removeBackground } from '../lib/imageUtils';
-import { assertImageUploadFile, formatFileSize, MAX_IMAGE_UPLOAD_BYTES, optimizeImage, storageImageUrl, TARGET_IMAGE_UPLOAD_BYTES } from '../lib/business';
+import { assertImageUploadFile, formatFileSize, MAX_IMAGE_UPLOAD_BYTES, MAX_PRODUCT_IMAGES, optimizeImage, storageImageUrl, TARGET_IMAGE_UPLOAD_BYTES } from '../lib/business';
 import { useAlert } from './AlertProvider';
 
 interface ImageUploadProps {
-  onImageReady?: (file: Blob) => void;
+  onImageReady?: (file: Blob | null) => void;
   onImagesReady?: (files: File[]) => void;
   currentImagePath?: string | null;
   currentImageUrl?: string | null;
@@ -27,7 +27,7 @@ export default function ImageUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const initialPreviews =
     currentImages?.map(storageImageUrl).filter(Boolean) ||
-    (currentImagePath ? [storageImageUrl(currentImagePath)] : currentImageUrl ? [currentImageUrl] : []);
+    (currentImagePath ? [storageImageUrl(currentImagePath)] : currentImageUrl ? [storageImageUrl(currentImageUrl)] : []);
   const [previews, setPreviews] = useState<string[]>(initialPreviews);
   const [processing, setProcessing] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -39,13 +39,17 @@ export default function ImageUpload({
   const handleFiles = useCallback(async (list: FileList | null) => {
     const files = Array.from(list || []);
     if (files.length === 0) return;
+    if (multiple && files.length > MAX_PRODUCT_IMAGES) {
+      showAlert({ title: 'Terlalu banyak foto', message: `Maksimal ${MAX_PRODUCT_IMAGES} foto per produk.`, variant: 'warning' });
+      return;
+    }
     setProcessing(true);
     let optimized: File[];
     try {
       files.forEach(assertImageUploadFile);
       optimized = await Promise.all(files.map(async (file) => {
         const blob = await optimizeImage(file);
-        return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+        return new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
       }));
     } catch (err) {
       showAlert({
@@ -80,7 +84,7 @@ export default function ImageUpload({
         const processed = await Promise.all(selectedFiles.map(async (file) => {
           const noBg = await removeBackground(file, 38, 2);
           const optimized = await optimizeImage(noBg, 1.1);
-          return new File([optimized], file.name, { type: 'image/jpeg' });
+          return new File([optimized], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
         }));
         setSelectedFiles(processed);
         setPreviews(processed.map((file) => URL.createObjectURL(file)));
@@ -114,6 +118,7 @@ export default function ImageUpload({
     setSelectedFiles([]);
     setBgRemoved(false);
     setShowOptions(false);
+    onImageReady?.(null);
     onImagesReady?.([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';

@@ -13,6 +13,7 @@ import {
   normalizeStorageLocation,
   PRODUCT_CATEGORY_SLUGS,
   productAvailabilityFromStock,
+  removeStorageImages,
   STORAGE_LOCATIONS,
   STORAGE_LOCATION_LABELS,
 } from '../../lib/business';
@@ -63,7 +64,7 @@ export default function AdminProducts() {
   const loadData = async () => {
     setLoading(true);
     const [prods, cats] = await Promise.all([
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
+      supabase.from('products').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('categories').select('*').order('sort_order'),
     ]);
     setProducts((prods.data || []).map((p) => ({ ...p, availability_status: productAvailabilityFromStock(p) })));
@@ -132,11 +133,15 @@ export default function AdminProducts() {
     }
     let images = editing?.images || [];
     let thumbnailPath = editing?.thumbnail_path || null;
+    let thumbnailPaths = editing?.image_thumbnail_paths || [];
+    let uploadedPaths: string[] = [];
     if (imageFiles.length > 0) {
       try {
         const uploaded = await uploadProductImages(imageFiles, productCode);
         images = uploaded.images;
         thumbnailPath = uploaded.thumbnailPath;
+        thumbnailPaths = uploaded.thumbnailPaths;
+        uploadedPaths = [...uploaded.images, ...uploaded.thumbnailPaths];
       } catch (err: any) {
         showAlert({ title: 'Upload foto gagal', message: err.message, variant: 'error' });
         setSaving(false);
@@ -167,6 +172,7 @@ export default function AdminProducts() {
       images,
       image_path: images[0] || editing?.image_path || null,
       thumbnail_path: thumbnailPath,
+      image_thumbnail_paths: thumbnailPaths,
       tags: [],
       is_featured: Boolean(form.is_featured),
       status: websiteStatus,
@@ -179,18 +185,19 @@ export default function AdminProducts() {
     };
 
     const result = editing
-      ? await supabase.from('products').update(payload).eq('id', editing.id)
-      : await supabase.from('products').insert(payload);
+      ? await supabase.from('products').update(payload).eq('id', editing.id).select('id').single()
+      : await supabase.from('products').insert(payload).select('id').single();
 
     if (result.error) {
+      await removeStorageImages(uploadedPaths).catch(() => undefined);
       showAlert({ title: 'Gagal menyimpan produk', message: result.error.message, variant: 'error' });
       setSaving(false);
       return;
     }
 
     if (!editing && normalizedStock > 0) {
-      const { data: newProd } = await supabase.from('products').select('id').eq('product_code', productCode).maybeSingle();
-      if (newProd) {
+      const newProd = result.data;
+      if (newProd?.id) {
         await supabase.from('inventory_movements').insert({
           product_id: newProd.id,
           type: 'in',
@@ -229,7 +236,6 @@ export default function AdminProducts() {
 
         await logActivity('product_deleted', 'product', product.id, `Deleted product: ${product.name}`);
         setProducts((prev) => prev.filter((item) => item.id !== product.id));
-        loadData();
       },
     });
   };

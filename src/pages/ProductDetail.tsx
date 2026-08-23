@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingBag, Heart, Share2, Truck, Shield } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { formatIDR } from '../lib/constants';
 import { useCart } from '../lib/cart';
 import type { Product, Category } from '../lib/types';
-import { AVAILABILITY_LABELS, itemStatusColor, productAvailabilityFromStock, productIsAvailable, storageImageUrl } from '../lib/business';
+import { AVAILABILITY_LABELS, itemStatusColor, loadPublicProduct, productAvailabilityFromStock, productIsAvailable, storageImageUrl } from '../lib/business';
 import { useAlert } from '../components/AlertProvider';
 
 interface Props {
@@ -21,18 +20,22 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
   const { showAlert } = useAlert();
 
   useEffect(() => {
+    let active = true;
     (async () => {
       setLoading(true);
-      const { data } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
-      if (data) {
-        setProduct(data);
-        if (data.category_id) {
-          const { data: cat } = await supabase.from('categories').select('*').eq('id', data.category_id).maybeSingle();
-          setCategory(cat);
-        }
+      try {
+        const result = await loadPublicProduct(productId);
+        if (!active) return;
+        setProduct(result?.product || null);
+        setCategory(result?.category || null);
+        setActiveImage(0);
+      } catch {
+        if (active) { setProduct(null); setCategory(null); }
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     })();
+    return () => { active = false; };
   }, [productId]);
 
   const handleAddToCart = () => {
@@ -103,6 +106,7 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
     : product.image_path
       ? [storageImageUrl(product.image_path)]
       : ['https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg'];
+  const thumbnailPaths = product.image_thumbnail_paths || [];
 
   const trustItems = [
     { icon: Truck, label: 'Pengiriman Cepat' },
@@ -126,6 +130,8 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
             <img
               src={images[activeImage]}
               alt={product.name}
+              fetchPriority="high"
+              decoding="async"
               className="h-full w-full object-cover"
             />
             {product.is_featured && (
@@ -137,17 +143,25 @@ export default function ProductDetail({ productId, onNavigate }: Props) {
           </div>
           {images.length > 1 && (
             <div className="mt-4 flex gap-2 overflow-x-auto">
-              {images.map((img, i) => (
+              {images.map((_img, i) => {
+                const thumbnail = thumbnailPaths[i] || (i === 0 ? product.thumbnail_path : null);
+                return (
                 <button
                   key={i}
                   onClick={() => setActiveImage(i)}
+                  aria-label={`Tampilkan foto ${i + 1}`}
                   className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
                     activeImage === i ? 'border-primary-500' : 'border-transparent opacity-60'
                   }`}
                 >
-                  <img src={img} alt="" className="h-full w-full object-cover" />
+                  {thumbnail ? (
+                    <img src={storageImageUrl(thumbnail)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center bg-neutral-100 text-xs font-medium text-neutral-600">Foto {i + 1}</span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

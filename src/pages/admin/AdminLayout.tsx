@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { BRAND } from '../../lib/constants';
 import { useTheme } from '../../lib/theme';
@@ -6,15 +6,15 @@ import {
   LayoutDashboard, Package, ShoppingCart, Warehouse, FileBarChart,
   Bell, LogOut, Menu, X, Moon, Sun, Boxes, MonitorCog, Shield, Wallet
 } from 'lucide-react';
-import AdminDashboard from './AdminDashboard';
-import AdminProducts from './AdminProducts';
-import AdminOrders from './AdminOrders';
-import AdminInventory from './AdminInventory';
-import AdminReports from './AdminReports';
-import AdminPackages from './AdminPackages';
-import AdminWebsite from './AdminWebsite';
-import AdminManagement from './AdminManagement';
-import AdminFinance from './AdminFinance';
+const AdminDashboard = lazy(() => import('./AdminDashboard'));
+const AdminProducts = lazy(() => import('./AdminProducts'));
+const AdminOrders = lazy(() => import('./AdminOrders'));
+const AdminInventory = lazy(() => import('./AdminInventory'));
+const AdminReports = lazy(() => import('./AdminReports'));
+const AdminPackages = lazy(() => import('./AdminPackages'));
+const AdminWebsite = lazy(() => import('./AdminWebsite'));
+const AdminManagement = lazy(() => import('./AdminManagement'));
+const AdminFinance = lazy(() => import('./AdminFinance'));
 
 interface Props {
   onLogout: () => void;
@@ -51,8 +51,8 @@ export default function AdminLayout({ onLogout }: Props) {
   };
 
   const markRead = async (id: string) => {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-    loadNotifications();
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    if (!error) setNotifications((current) => current.map((notification) => notification.id === id ? { ...notification, is_read: true } : notification));
   };
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -191,6 +191,7 @@ export default function AdminLayout({ onLogout }: Props) {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
+          <Suspense fallback={<div className="space-y-3"><div className="skeleton h-8 w-48" /><div className="skeleton h-64" /></div>}>
           {page === 'dashboard' && <AdminDashboard />}
           {page === 'products' && <AdminProducts />}
           {page === 'packages' && <AdminPackages />}
@@ -200,6 +201,7 @@ export default function AdminLayout({ onLogout }: Props) {
           {page === 'reports' && <AdminReports />}
           {page === 'website' && <AdminWebsite />}
           {page === 'admin' && <AdminManagement />}
+          </Suspense>
         </main>
       </div>
     </div>

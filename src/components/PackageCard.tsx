@@ -11,7 +11,7 @@ interface Props {
 export default function PackageCard({ pkg }: Props) {
   const { addPackage } = useCart();
   const available = packageIsAvailable(pkg);
-  const itemCount = pkg.business_package_items?.length || 0;
+  const itemCount = pkg.item_count ?? pkg.business_package_items?.length ?? 0;
 
   return (
     <div className="group card overflow-hidden">

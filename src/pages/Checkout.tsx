@@ -1,13 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle, MessageCircle, AlertCircle, Instagram, Calendar, Clock } from 'lucide-react';
 import { getCartItemCode, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { supabase } from '../lib/supabase';
-import { formatIDR, genOrderNumber, genInvoiceNumber, waMessage, PAYMENT_METHODS, SHIPPING_METHODS } from '../lib/constants';
+import { formatIDR, waMessage, PAYMENT_METHODS, SHIPPING_METHODS } from '../lib/constants';
 import {
-  computePackageCogs,
   packageImageUrl,
   PAYMENT_LABELS,
-  reserveOrderItems,
   SHIPPING_LABELS,
 } from '../lib/business';
 import { getProductImageUrl } from '../lib/imageUtils';
@@ -56,6 +54,7 @@ export default function Checkout({ onNavigate }: Props) {
   const [couponError, setCouponError] = useState('');
   const [agreedRules, setAgreedRules] = useState(false);
   const { showAlert } = useAlert();
+  const checkoutRequestId = useRef(crypto.randomUUID());
 
   const shippingCost = 0;
   const total = subtotal - discount + shippingCost;
@@ -79,27 +78,17 @@ export default function Checkout({ onNavigate }: Props) {
 
   const applyCoupon = async () => {
     if (!form.coupon) return;
-    const { data } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', form.coupon.toUpperCase())
-      .eq('is_active', true)
-      .maybeSingle();
-    if (!data) {
+    const { data, error } = await supabase.rpc('preview_public_coupon', {
+      p_code: form.coupon.toUpperCase(),
+      p_subtotal: subtotal,
+    });
+    const preview = data as { valid?: boolean; discount?: number } | null;
+    if (error || !preview?.valid) {
       setCouponError('Kupon tidak valid');
       setDiscount(0);
       return;
     }
-    if (data.min_purchase && subtotal < data.min_purchase) {
-      setCouponError(`Min belanja ${formatIDR(data.min_purchase)}`);
-      setDiscount(0);
-      return;
-    }
-    if (data.type === 'percentage') {
-      setDiscount(Math.round((subtotal * data.value) / 100));
-    } else {
-      setDiscount(data.value);
-    }
+    setDiscount(Number(preview.discount || 0));
     setCouponError('');
   };
 
@@ -129,162 +118,76 @@ export default function Checkout({ onNavigate }: Props) {
   const confirmWhatsApp = async () => {
     if (items.length === 0) return;
     setLoading(true);
-    let createdOrderId: string | null = null;
-
     try {
-    const orderNumber = genOrderNumber();
-    const invoiceNumber = genInvoiceNumber();
-
-    const { data: existingCustomer } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('phone', form.phone)
-      .maybeSingle();
-
-    let customerId = existingCustomer?.id;
-    if (!customerId) {
-      const { data: newCustomer } = await supabase.from('customers').insert({
-        name: form.name,
-        phone: form.phone,
-        address: form.address,
-        city: form.city,
-        province: form.province,
-        notes: form.instagram ? `IG: ${form.instagram}` : undefined,
-      }).select('id').single();
-      customerId = newCustomer?.id;
-    }
-
-    const estimatedDelivery = form.shipping === 'pickup' ? form.pickupDate : undefined;
-
-    const { data: order, error } = await supabase.from('orders').insert({
-      order_number: orderNumber,
-      invoice_number: invoiceNumber,
-      customer_id: customerId,
-      customer_name: form.name,
-      customer_phone: form.phone,
-      customer_address: form.address,
-      customer_city: form.city,
-      customer_province: form.province,
-      shipping_method: form.shipping,
-      shipping_cost: shippingCost,
-      subtotal,
-      discount_amount: discount,
-      total_amount: total,
-      payment_method: form.payment,
-      payment_status: 'pending',
-      order_status: 'pending',
-      keep_expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      keep_status: 'active',
-      shipping_note: form.shipping === 'pickup' ? `${form.pickupDate} ${form.pickupTime}` : null,
-      coupon_code: form.coupon || null,
-      notes: form.notes + (form.instagram ? ` | IG: ${form.instagram}` : '') + (form.pickupDate ? ` | Ambil: ${form.pickupDate} ${form.pickupTime}` : ''),
-      estimated_delivery: estimatedDelivery,
-    }).select('id').single();
-
-    if (error || !order) {
-      showAlert({
-        title: 'Gagal membuat pesanan',
-        message: error?.message || 'Unknown error',
-        variant: 'error',
-      });
-      return;
-    }
-    createdOrderId = order.id;
-
-    const orderItems = items.map((item) => {
-      const unitPrice = getCartItemPrice(item);
-      if (item.kind === 'package') {
-        return {
-          order_id: order.id,
-          item_type: 'package',
-          product_id: null,
-          package_id: item.package.id,
-          product_code: item.package.package_code,
-          product_name: item.package.name,
-          quantity: 1,
-          unit_price: unitPrice,
-          purchase_price: computePackageCogs(item.package),
-          subtotal: unitPrice,
-          package_items_snapshot: item.package.business_package_items || [],
-        };
-      }
-      return {
-        order_id: order.id,
-        item_type: 'product',
-        product_id: item.product.id,
-        package_id: null,
-        product_code: item.product.product_code,
-        product_name: item.product.name,
-        quantity: 1,
-        unit_price: unitPrice,
-        purchase_price: item.product.purchase_price,
-        subtotal: unitPrice,
-        package_items_snapshot: [],
-      };
-    });
-    const { error: orderItemsError } = await supabase.from('order_items').insert(orderItems);
-    if (orderItemsError) throw new Error(orderItemsError.message);
-    await reserveOrderItems(order.id);
-
-    await supabase.from('notifications').insert({
-      type: 'new_order',
-      title: 'Pesanan Baru',
-      message: `${form.name} - ${orderNumber} - ${formatIDR(total)}`,
-      reference_type: 'order',
-      reference_id: order.id,
-    });
-
-    await supabase.from('activity_logs').insert({
-      action: 'order_created',
-      entity_type: 'order',
-      entity_id: order.id,
-      description: `Order ${orderNumber} created by ${form.name}`,
-    });
-
-    try {
-      const syncUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-sheets`;
-      await fetch(syncUrl, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ orderId: order.id }),
+        body: JSON.stringify({
+          requestId: checkoutRequestId.current,
+          customer: {
+            name: form.name,
+            phone: form.phone,
+            instagram: form.instagram,
+            address: form.address,
+            city: form.city,
+            province: form.province,
+            pickup_date: form.pickupDate,
+            pickup_time: form.pickupTime,
+          },
+          shippingMethod: form.shipping,
+          paymentMethod: form.payment,
+          couponCode: form.coupon,
+          notes: form.notes,
+          items: items.map((item) => ({
+            kind: item.kind,
+            id: item.kind === 'product' ? item.product.id : item.package.id,
+          })),
+        }),
       });
-    } catch {
-      // non-blocking
-    }
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.order) throw new Error(payload.error || 'Checkout gagal diproses.');
+      const order = payload.order as {
+        order_number: string;
+        invoice_number: string;
+        total_amount: number;
+        discount_amount: number;
+        payment_method: string;
+        shipping_method: string;
+      };
 
-    setOrderId(orderNumber);
-    setInvoiceNo(invoiceNumber);
-    setSuccessTotal(total);
-    setSuccessPayment(form.payment);
-    setSuccessShipping(form.shipping);
-    setSuccessPickupDate(form.pickupDate);
-    setSuccessPickupTime(form.pickupTime);
-    setSuccessItems(items);
-    const autoProductLines = items.map((item) => {
-      const image = item.kind === 'product' ? getProductImageUrl(item.product, 'original') : packageImageUrl(item.package, 'original');
-      return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
-    }).join('\n');
-    const autoPaymentText = PAYMENT_LABELS[form.payment as keyof typeof PAYMENT_LABELS] || form.payment;
-    const autoShippingText = SHIPPING_LABELS[form.shipping as keyof typeof SHIPPING_LABELS] || form.shipping;
-    const autoWaMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${autoProductLines}\n\nHarga: ${formatIDR(total)}\n\nMetode Pembayaran: ${autoPaymentText}\n\nMetode Pengiriman: ${autoShippingText}${form.shipping === 'pickup' ? ` (${form.pickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderNumber}\nNo. Invoice: ${invoiceNumber}\n\n==========================`;
-    window.open(waMessage(autoWaMsg), '_blank', 'noopener,noreferrer');
-    setShowWaConfirm(false);
-    clearCart();
-    setStep('success');
+      setOrderId(order.order_number);
+      setInvoiceNo(order.invoice_number);
+      setSuccessTotal(Number(order.total_amount));
+      setDiscount(Number(order.discount_amount || 0));
+      setSuccessPayment(order.payment_method);
+      setSuccessShipping(order.shipping_method);
+      setSuccessPickupDate(form.pickupDate);
+      setSuccessPickupTime(form.pickupTime);
+      setSuccessItems(items);
+      const autoProductLines = items.map((item) => {
+        const image = item.kind === 'product' ? getProductImageUrl(item.product, 'original') : packageImageUrl(item.package, 'original');
+        return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
+      }).join('\n');
+      const autoPaymentText = PAYMENT_LABELS[order.payment_method as keyof typeof PAYMENT_LABELS] || order.payment_method;
+      const autoShippingText = SHIPPING_LABELS[order.shipping_method as keyof typeof SHIPPING_LABELS] || order.shipping_method;
+      const autoWaMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${autoProductLines}\n\nHarga: ${formatIDR(Number(order.total_amount))}\n\nMetode Pembayaran: ${autoPaymentText}\n\nMetode Pengiriman: ${autoShippingText}${form.shipping === 'pickup' ? ` (${form.pickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${order.order_number}\nNo. Invoice: ${order.invoice_number}\n\n==========================`;
+      window.open(waMessage(autoWaMsg), '_blank', 'noopener,noreferrer');
+      checkoutRequestId.current = crypto.randomUUID();
+      setShowWaConfirm(false);
+      clearCart();
+      setStep('success');
     } catch (err) {
-      if (createdOrderId) {
-        await supabase.from('orders').delete().eq('id', createdOrderId);
-      }
       showAlert({
         title: 'Gagal membuat pesanan',
         message: err instanceof Error ? err.message : 'Terjadi kesalahan saat membuat pesanan.',
         variant: 'error',
       });
     } finally {
-    setLoading(false);
+      setLoading(false);
     }
   };
 

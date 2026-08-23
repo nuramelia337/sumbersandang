@@ -1,19 +1,15 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, BadgePercent, Gem, Sparkles, Shirt, Truck, Shield, Heart, Recycle, Clock3 } from 'lucide-react';
 
-import { supabase } from '../lib/supabase';
 import type { BusinessPackage, Product, Category, PromoBannerSetting, Testimonial } from '../lib/types';
 import ProductCard from '../components/ProductCard';
 import PackageCard from '../components/PackageCard';
 import {
   DEFAULT_PROMO_BANNER,
-  loadPromoBanner,
-  loadPublicPackages,
-  loadTestimonials,
+  loadPublicHome,
   PRODUCT_CATEGORY_COPY,
   PRODUCT_CATEGORY_SLUGS,
-  PUBLIC_CATEGORY_SELECT,
-  PUBLIC_PRODUCT_CARD_SELECT,
+  storageImageUrl,
 } from '../lib/business';
 
 interface Props {
@@ -30,26 +26,27 @@ export default function Home({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     (async () => {
-      const [feat, lat, cats, pkgs, quotes, banner] = await Promise.all([
-        supabase.from('products').select(PUBLIC_PRODUCT_CARD_SELECT).eq('is_featured', true).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).limit(4),
-        supabase.from('products').select(PUBLIC_PRODUCT_CARD_SELECT).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('created_at', { ascending: false }).limit(8),
-        supabase.from('categories').select(PUBLIC_CATEGORY_SELECT).order('sort_order'),
-        loadPublicPackages(6),
-        loadTestimonials(),
-        loadPromoBanner(),
-      ]);
-      setFeatured((feat.data || []) as unknown as Product[]);
-      setLatest((lat.data || []) as unknown as Product[]);
-      setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
-      setPackages(pkgs);
-      setTestimonials(quotes);
-      setPromo(banner);
-      setLoading(false);
+      try {
+        const payload = await loadPublicHome();
+        if (!active) return;
+        setFeatured(payload.featured.slice(0, 4));
+        setLatest(payload.latest);
+        setCategories(payload.categories.filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
+        setPackages(payload.packages);
+        setTestimonials(payload.testimonials);
+        setPromo(payload.promo_banner as PromoBannerSetting);
+      } catch {
+        if (active) setPromo(DEFAULT_PROMO_BANNER);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
+    return () => { active = false; };
   }, []);
 
-  const heroImage = promo.is_active ? promo.image_url : 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg';
+  const heroImage = promo.is_active ? storageImageUrl(promo.image_url) : 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg';
   const heroCtaPage = promo.cta_page === 'shop:packages' ? 'shop' : promo.cta_page || 'shop';
   const heroCtaData = promo.cta_page === 'shop:packages' ? { category: 'packages' } : undefined;
 
@@ -61,6 +58,8 @@ export default function Home({ onNavigate }: Props) {
           <img
             src={heroImage}
             alt="Hero"
+            fetchPriority="high"
+            decoding="async"
             className="h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-secondary-950/85 via-secondary-900/60 to-primary-950/10" />

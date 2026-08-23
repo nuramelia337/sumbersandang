@@ -28,8 +28,8 @@ export default function AdminInventory() {
   const loadData = async () => {
     const [movs, prods, poList] = await Promise.all([
       supabase.from('inventory_movements').select('*').order('created_at', { ascending: false }).limit(50),
-      supabase.from('products').select('*').order('name'),
-      supabase.from('purchase_orders').select('*').order('created_at', { ascending: false }),
+      supabase.from('products').select('*').order('name').limit(200),
+      supabase.from('purchase_orders').select('*').order('created_at', { ascending: false }).limit(50),
     ]);
     setMovements(movs.data || []);
     setProducts(prods.data || []);

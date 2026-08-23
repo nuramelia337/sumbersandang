@@ -17,7 +17,7 @@ export default function AdminManagement() {
   const { showAlert, showConfirm } = useAlert();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id || null));
+    supabase.auth.getSession().then(({ data }) => setCurrentUserId(data.session?.user.id || null));
     loadData();
   }, []);
 

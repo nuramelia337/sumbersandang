@@ -54,12 +54,7 @@ export default function AdminOrders() {
 
   const loadOrders = async () => {
     setLoading(true);
-    try {
-      await supabase.rpc('release_expired_keeps');
-    } catch {
-      // Non-blocking; orders can still load if the migration is not applied yet.
-    }
-    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(50);
     if (error) {
       showAlert({ title: 'Gagal memuat pesanan', message: error.message, variant: 'error' });
       setLoading(false);
@@ -94,7 +89,7 @@ export default function AdminOrders() {
       await transitionOrderInventory(id, status);
 
       await logActivity('order_status_updated', 'order', id, `Order status changed to ${status}`);
-      loadOrders();
+      setOrders((current) => current.map((order) => order.id === id ? { ...order, ...payload } : order));
       if (selectedOrder?.id === id) {
         setSelectedOrder({ ...selectedOrder, ...payload });
       }
@@ -182,7 +177,6 @@ export default function AdminOrders() {
         await logActivity('order_deleted', 'order', order.id, `Deleted order ${order.order_number}`);
         if (selectedOrder?.id === order.id) setSelectedOrder(null);
         setOrders((prev) => prev.filter((item) => item.id !== order.id));
-        loadOrders();
       },
     });
   };

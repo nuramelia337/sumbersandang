@@ -41,12 +41,20 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     (async () => {
-      try {
-        await supabase.rpc('release_expired_keeps');
-      } catch {
-        // Non-blocking; dashboard can still load if the migration is not applied yet.
+      const { data: aggregateData, error: aggregateError } = await supabase.rpc('get_admin_dashboard');
+      if (!aggregateError && aggregateData) {
+        const payload = aggregateData as any;
+        setStats((current) => ({ ...current, ...(payload.stats || {}) }));
+        setRecentOrders(payload.recentOrders || []);
+        setLowStockProducts(payload.lowStockProducts || []);
+        setTopProducts(payload.topProducts || []);
+        setLatestProducts(payload.latestProducts || []);
+        setSalesTrend(payload.salesTrend || []);
+        setLoading(false);
+        return;
       }
 
+      // Backward-compatible fallback while the hardening migration is being rolled out.
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { PromoBannerSetting, Testimonial } from '../../lib/types';
-import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadTestimonials, logActivity, savePromoBanner, storageImageUrl, uploadImage } from '../../lib/business';
+import { DEFAULT_PROMO_BANNER, loadPromoBanner, loadTestimonials, logActivity, removeStorageImages, savePromoBanner, uploadImage } from '../../lib/business';
 import { useAlert } from '../../components/AlertProvider';
 import ImageUpload from '../../components/ImageUpload';
 
@@ -37,10 +37,12 @@ export default function AdminWebsite() {
   const saveBanner = async () => {
     setSaving(true);
     let nextBanner = banner;
+    let uploadedPath: string | null = null;
     try {
       if (bannerImage) {
         const path = await uploadImage(bannerImage, 'banners');
-        nextBanner = { ...banner, image_url: storageImageUrl(path) };
+        uploadedPath = path;
+        nextBanner = { ...banner, image_url: path };
       }
     } catch (err) {
       showAlert({ title: 'Upload banner gagal', message: err instanceof Error ? err.message : 'Gagal mengupload gambar banner.', variant: 'error' });
@@ -49,7 +51,10 @@ export default function AdminWebsite() {
     }
 
     const { error } = await savePromoBanner(nextBanner);
-    if (error) showAlert({ title: 'Gagal simpan banner', message: error.message, variant: 'error' });
+    if (error) {
+      await removeStorageImages([uploadedPath]).catch(() => undefined);
+      showAlert({ title: 'Gagal simpan banner', message: error.message, variant: 'error' });
+    }
     else {
       setBanner(nextBanner);
       setBannerImage(null);
@@ -86,7 +91,6 @@ export default function AdminWebsite() {
         if (error) throw new Error(error.message);
         await logActivity('testimonial_deleted', 'testimonial', testimonial.id, `Deleted testimonial: ${testimonial.customer_name}`);
         setTestimonials((prev) => prev.filter((item) => item.id !== testimonial.id));
-        loadData();
       },
     });
   };

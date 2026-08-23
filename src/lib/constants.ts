@@ -1,4 +1,4 @@
-import { createThumbnailImage, uploadStorageImage } from './business';
+import { createThumbnailImage, MAX_PRODUCT_IMAGES, removeStorageImages, uploadStorageImage } from './business';
 
 export const BRAND = {
   name: 'Sumber Sandang',
@@ -67,28 +67,37 @@ export function formatDateTime(d: string | Date): string {
 export interface ProductImagesUploadResult {
   images: string[];
   thumbnailPath: string | null;
+  thumbnailPaths: string[];
 }
 
 export async function uploadProductImage(file: Blob, productCode: string): Promise<string> {
-  const path = `${productCode}-${Date.now()}.jpg`;
-  return uploadStorageImage(path, file, 'image/jpeg');
+  const path = `products/${productCode}-${crypto.randomUUID()}.webp`;
+  return uploadStorageImage(path, file, 'image/webp');
 }
 
 export async function uploadProductImages(files: Blob[], productCode: string): Promise<ProductImagesUploadResult> {
+  if (files.length > MAX_PRODUCT_IMAGES) throw new Error(`Maksimal ${MAX_PRODUCT_IMAGES} foto per produk.`);
   const uploaded: string[] = [];
-  let thumbnailPath: string | null = null;
-  for (const [index, file] of files.entries()) {
-    const stamp = `${Date.now()}-${index}`;
-    const path = `${productCode}-${stamp}.jpg`;
-    await uploadStorageImage(path, file, file.type || 'image/jpeg');
-    uploaded.push(path);
-    if (index === 0) {
+  const images: string[] = [];
+  const thumbnailPaths: string[] = [];
+  try {
+    for (const file of files) {
+      const stamp = crypto.randomUUID();
+      const path = `products/${productCode}-${stamp}.webp`;
       const thumbnail = await createThumbnailImage(file);
-      thumbnailPath = `thumbnails/products/${productCode}-${stamp}.webp`;
+      const thumbnailPath = `thumbnails/products/${productCode}-${stamp}.webp`;
+      await uploadStorageImage(path, file, 'image/webp');
+      uploaded.push(path);
+      images.push(path);
       await uploadStorageImage(thumbnailPath, thumbnail, 'image/webp');
+      uploaded.push(thumbnailPath);
+      thumbnailPaths.push(thumbnailPath);
     }
+    return { images, thumbnailPath: thumbnailPaths[0] || null, thumbnailPaths };
+  } catch (error) {
+    await removeStorageImages(uploaded).catch(() => undefined);
+    throw error;
   }
-  return { images: uploaded, thumbnailPath };
 }
 
 export const PAYMENT_METHODS = [

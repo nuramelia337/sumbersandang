@@ -4,6 +4,7 @@ import type {
   AdminProfile,
   BusinessPackage,
   CashLedger,
+  Category,
   FinanceSummary,
   FinanceSetting,
   Order,
@@ -76,45 +77,11 @@ export function normalizeStorageLocation(value?: string | null): StorageLocation
 }
 
 export const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
-export const TARGET_IMAGE_UPLOAD_BYTES = 700 * 1024;
-export const TARGET_THUMBNAIL_UPLOAD_BYTES = 80 * 1024;
-export const PUBLIC_PRODUCT_CARD_SELECT = [
-  'id',
-  'product_code',
-  'name',
-  'category_id',
-  'brand',
-  'size',
-  'color',
-  'condition',
-  'purchase_price',
-  'selling_price',
-  'stock',
-  'image_path',
-  'thumbnail_path',
-  'is_featured',
-  'status',
-  'availability_status',
-  'created_at',
-].join(',');
-export const PUBLIC_CATEGORY_SELECT = 'id,name,slug,description,image_url,sort_order,created_at';
+export const TARGET_IMAGE_UPLOAD_BYTES = 350 * 1024;
+export const TARGET_THUMBNAIL_UPLOAD_BYTES = 60 * 1024;
+export const MAX_IMAGE_PIXELS = 25_000_000;
+export const MAX_PRODUCT_IMAGES = 6;
 const PACKAGE_PRODUCT_SELECT = 'id,product_code,name,purchase_price,status,availability_status,stock';
-export const PUBLIC_PACKAGE_SELECT = [
-  'id',
-  'package_code',
-  'name',
-  'description',
-  'price',
-  'cover_image_path',
-  'cover_image_url',
-  'thumbnail_path',
-  'is_featured',
-  'availability_status',
-  'status',
-  'created_at',
-  'updated_at',
-  `business_package_items(id,package_id,product_id,created_at,product:products(${PACKAGE_PRODUCT_SELECT}))`,
-].join(',');
 
 export const DEFAULT_PROMO_BANNER: PromoBannerSetting = {
   title: 'Paket usaha thrift siap jual',
@@ -189,15 +156,15 @@ export async function uploadStorageImage(path: string, file: Blob, contentType =
   const { error } = await supabase.storage.from('products').upload(path, file, {
     contentType,
     cacheControl: '31536000',
-    upsert: true,
+    upsert: false,
   });
   if (error) throw new Error(`Upload gagal: ${error.message}`);
   return path;
 }
 
 export async function uploadImage(file: Blob, folder: string): Promise<string> {
-  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-  return uploadStorageImage(path, file, file.type || 'image/jpeg');
+  const path = `${folder}/${crypto.randomUUID()}.webp`;
+  return uploadStorageImage(path, file, 'image/webp');
 }
 
 export interface ImageUploadResult {
@@ -206,13 +173,28 @@ export interface ImageUploadResult {
 }
 
 export async function uploadImageWithThumbnail(file: Blob, folder: string): Promise<ImageUploadResult> {
-  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const path = `${folder}/${stamp}.jpg`;
+  const stamp = crypto.randomUUID();
+  const path = `${folder}/${stamp}.webp`;
   const thumbnailPath = `thumbnails/${folder}/${stamp}.webp`;
   const thumbnail = await createThumbnailImage(file);
-  await uploadStorageImage(path, file, file.type || 'image/jpeg');
-  await uploadStorageImage(thumbnailPath, thumbnail, 'image/webp');
-  return { path, thumbnailPath };
+  const uploaded: string[] = [];
+  try {
+    await uploadStorageImage(path, file, 'image/webp');
+    uploaded.push(path);
+    await uploadStorageImage(thumbnailPath, thumbnail, 'image/webp');
+    uploaded.push(thumbnailPath);
+    return { path, thumbnailPath };
+  } catch (error) {
+    if (uploaded.length > 0) await supabase.storage.from('products').remove(uploaded);
+    throw error;
+  }
+}
+
+export async function removeStorageImages(paths: Array<string | null | undefined>): Promise<void> {
+  const unique = Array.from(new Set(paths.filter((path): path is string => Boolean(path) && !/^https?:\/\//.test(path!))));
+  if (unique.length === 0) return;
+  const { error } = await supabase.storage.from('products').remove(unique);
+  if (error) throw new Error(`Cleanup upload gagal: ${error.message}`);
 }
 
 export function formatFileSize(bytes: number): string {
@@ -237,14 +219,11 @@ function loadImageElement(file: Blob): Promise<HTMLImageElement> {
       URL.revokeObjectURL(url);
       resolve(img);
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Format gambar tidak didukung. Gunakan JPEG, PNG, atau WebP.'));
+    };
     img.src = url;
-  });
-}
-
-function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal memproses gambar'))), 'image/jpeg', quality);
   });
 }
 
@@ -256,33 +235,25 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 
 export async function optimizeImage(file: Blob, brightness = 1.08, targetBytes = TARGET_IMAGE_UPLOAD_BYTES): Promise<Blob> {
   const img = await loadImageElement(file);
-  const maxSize = 1200;
-  const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(img.width * scale));
-  canvas.height = Math.max(1, Math.round(img.height * scale));
-  const ctx = canvas.getContext('2d')!;
-  ctx.filter = `brightness(${brightness}) contrast(1.04) saturate(1.04)`;
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-  const qualities = [0.78, 0.72, 0.66, 0.6];
-  let output = await canvasToJpeg(canvas, qualities[0]);
-  for (const quality of qualities.slice(1)) {
-    if (output.size <= targetBytes) break;
-    output = await canvasToJpeg(canvas, quality);
+  if (img.width * img.height > MAX_IMAGE_PIXELS) throw new Error('Resolusi gambar maksimal 25 megapiksel.');
+  const dimensions = [1200, 1080, 960, 840, 720];
+  const qualities = [0.78, 0.7, 0.62, 0.54, 0.46];
+  for (const maxSize of dimensions) {
+    const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.filter = `brightness(${brightness}) contrast(1.04) saturate(1.04)`;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    for (const quality of qualities) {
+      const output = await canvasToBlob(canvas, 'image/webp', quality);
+      if (output.size <= targetBytes) return output;
+    }
   }
-
-  if (output.size > targetBytes && Math.max(canvas.width, canvas.height) > 960) {
-    const smaller = document.createElement('canvas');
-    const shrink = 960 / Math.max(canvas.width, canvas.height);
-    smaller.width = Math.max(1, Math.round(canvas.width * shrink));
-    smaller.height = Math.max(1, Math.round(canvas.height * shrink));
-    const smallerCtx = smaller.getContext('2d')!;
-    smallerCtx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
-    output = await canvasToJpeg(smaller, 0.68);
-  }
-
-  return output;
+  throw new Error(`Gambar tidak dapat dipadatkan hingga ${formatFileSize(targetBytes)}. Gunakan foto yang lebih sederhana.`);
 }
 
 export async function createThumbnailImage(file: Blob, maxSize = 480, targetBytes = TARGET_THUMBNAIL_UPLOAD_BYTES): Promise<Blob> {
@@ -296,32 +267,35 @@ export async function createThumbnailImage(file: Blob, maxSize = 480, targetByte
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-  const qualities = [0.64, 0.58, 0.52, 0.46];
+  const qualities = [0.64, 0.56, 0.48, 0.4];
   let output = await canvasToBlob(canvas, 'image/webp', qualities[0]);
   for (const quality of qualities.slice(1)) {
     if (output.size <= targetBytes) break;
     output = await canvasToBlob(canvas, 'image/webp', quality);
   }
 
-  if (output.size > targetBytes && Math.max(canvas.width, canvas.height) > 360) {
+  if (output.size > targetBytes && Math.max(canvas.width, canvas.height) > 320) {
     const smaller = document.createElement('canvas');
-    const shrink = 360 / Math.max(canvas.width, canvas.height);
+    const shrink = 320 / Math.max(canvas.width, canvas.height);
     smaller.width = Math.max(1, Math.round(canvas.width * shrink));
     smaller.height = Math.max(1, Math.round(canvas.height * shrink));
     const smallerCtx = smaller.getContext('2d')!;
     smallerCtx.fillStyle = '#ffffff';
     smallerCtx.fillRect(0, 0, smaller.width, smaller.height);
     smallerCtx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
-    output = await canvasToBlob(smaller, 'image/webp', 0.52);
+    for (const quality of [0.48, 0.4, 0.34]) {
+      output = await canvasToBlob(smaller, 'image/webp', quality);
+      if (output.size <= targetBytes) break;
+    }
   }
-
+  if (output.size > targetBytes) throw new Error(`Thumbnail melebihi ${formatFileSize(targetBytes)}.`);
   return output;
 }
 
 export async function logActivity(action: string, entityType?: string, entityId?: string, description?: string, metadata: Record<string, unknown> = {}) {
-  const { data } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getSession();
   await supabase.from('activity_logs').insert({
-    admin_id: data.user?.id ?? null,
+    admin_id: data.session?.user.id ?? null,
     action,
     entity_type: entityType,
     entity_id: entityId,
@@ -346,7 +320,7 @@ export async function savePromoBanner(value: PromoBannerSetting) {
 export async function loadTestimonials(includeInactive = false): Promise<Testimonial[]> {
   let q = supabase.from('testimonials').select('*').order('sort_order').order('created_at', { ascending: false });
   if (!includeInactive) q = q.eq('is_active', true);
-  const { data } = await q;
+  const { data } = await q.limit(100);
   return data || [];
 }
 
@@ -354,20 +328,101 @@ export async function loadPackages(includeItems = false): Promise<BusinessPackag
   const select = includeItems
     ? `*, business_package_items(id,package_id,product_id,created_at,product:products(${PACKAGE_PRODUCT_SELECT}))`
     : '*';
-  const { data } = await supabase.from('business_packages').select(select).order('created_at', { ascending: false });
+  const { data } = await supabase.from('business_packages').select(select).order('created_at', { ascending: false }).limit(50);
   return (data || []) as unknown as BusinessPackage[];
 }
 
+type CacheEntry<T> = { expiresAt: number; promise: Promise<T> };
+const publicRequestCache = new Map<string, CacheEntry<unknown>>();
+
+function cachedPublicRequest<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
+  const existing = publicRequestCache.get(key) as CacheEntry<T> | undefined;
+  if (existing && existing.expiresAt > Date.now()) return existing.promise;
+  const promise = loader().catch((error) => {
+    publicRequestCache.delete(key);
+    throw error;
+  });
+  publicRequestCache.set(key, { expiresAt: Date.now() + ttlMs, promise });
+  return promise;
+}
+
+export interface PublicHomePayload {
+  featured: Product[];
+  latest: Product[];
+  categories: Category[];
+  packages: BusinessPackage[];
+  testimonials: Testimonial[];
+  promo_banner: Partial<PromoBannerSetting>;
+}
+
+export interface PublicProductPage {
+  items: Product[];
+  has_more: boolean;
+  next_cursor: Record<string, string | number> | null;
+}
+
+export async function loadPublicHome(): Promise<PublicHomePayload> {
+  return cachedPublicRequest('public-home', 10 * 60_000, async () => {
+    const { data, error } = await supabase.rpc('get_public_home');
+    if (error) throw new Error(error.message);
+    const payload = (data || {}) as PublicHomePayload;
+    return {
+      featured: payload.featured || [],
+      latest: payload.latest || [],
+      categories: payload.categories || [],
+      packages: payload.packages || [],
+      testimonials: payload.testimonials || [],
+      promo_banner: normalizePromoBanner(payload.promo_banner),
+    };
+  });
+}
+
+export async function loadPublicCatalogMeta(): Promise<{ categories: Category[]; packages: BusinessPackage[] }> {
+  return cachedPublicRequest('public-catalog-meta', 10 * 60_000, async () => {
+    const { data, error } = await supabase.rpc('get_public_catalog_meta');
+    if (error) throw new Error(error.message);
+    const payload = (data || {}) as { categories?: Category[]; packages?: BusinessPackage[] };
+    return { categories: payload.categories || [], packages: payload.packages || [] };
+  });
+}
+
+export async function listPublicProducts(params: {
+  categorySlug?: string | null;
+  search?: string;
+  sort?: 'newest' | 'price-low' | 'price-high';
+  cursor?: Record<string, string | number> | null;
+  limit?: number;
+}): Promise<PublicProductPage> {
+  const key = `public-products:${JSON.stringify(params)}`;
+  return cachedPublicRequest(key, 30_000, async () => {
+    const { data, error } = await supabase.rpc('list_public_products', {
+      p_category_slug: params.categorySlug || null,
+      p_search: params.search?.trim() || null,
+      p_sort: params.sort || 'newest',
+      p_cursor: params.cursor || null,
+      p_limit: Math.min(Math.max(params.limit || 48, 1), 48),
+    });
+    if (error) throw new Error(error.message);
+    const page = (data || {}) as PublicProductPage;
+    return { items: page.items || [], has_more: Boolean(page.has_more), next_cursor: page.next_cursor || null };
+  });
+}
+
+export async function loadPublicProduct(productId: string): Promise<{ product: Product; category: Category | null } | null> {
+  return cachedPublicRequest(`public-product:${productId}`, 30_000, async () => {
+    const { data, error } = await supabase.rpc('get_public_product', { p_id: productId });
+    if (error) throw new Error(error.message);
+    if (!data || !(data as any).product) return null;
+    return data as { product: Product; category: Category | null };
+  });
+}
+
 export async function loadPublicPackages(limit = 6): Promise<BusinessPackage[]> {
-  const { data } = await supabase
-    .from('business_packages')
-    .select(PUBLIC_PACKAGE_SELECT)
-    .eq('status', 'active')
-    .eq('availability_status', 'ready')
-    .order('is_featured', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  return ((data || []) as unknown as BusinessPackage[]).filter(packageIsAvailable);
+  return cachedPublicRequest(`public-packages:${limit}`, 10 * 60_000, async () => {
+    const { data, error } = await supabase.rpc('list_public_packages', { p_limit: Math.min(Math.max(limit, 1), 12) });
+    if (error) throw new Error(error.message);
+    return ((data || []) as BusinessPackage[]).filter(packageIsAvailable);
+  });
 }
 
 export async function loadAdminProfiles(): Promise<AdminProfile[]> {
@@ -397,46 +452,56 @@ export async function reserveOrderItems(orderId: string) {
   if (error) throw new Error(error.message);
 }
 
-export async function releaseExpiredKeeps(): Promise<number> {
-  const { data, error } = await supabase.rpc('release_expired_keeps');
-  if (error) throw new Error(error.message);
-  return Number(data || 0);
-}
-
 export async function loadBackupData() {
+  const loadAllRows = async (table: string) => {
+    const rows: unknown[] = [];
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await supabase.from(table).select('*').range(from, from + 499);
+      if (error) throw new Error(`Backup ${table} gagal: ${error.message}`);
+      rows.push(...(data || []));
+      if (!data || data.length < 500) return rows;
+    }
+  };
   const [products, packages, packageItems, orders, orderItems, customers, movements, settings, testimonials, logs, ledger, financeSettings] = await Promise.all([
-    supabase.from('products').select('*'),
-    supabase.from('business_packages').select('*'),
-    supabase.from('business_package_items').select('*'),
-    supabase.from('orders').select('*'),
-    supabase.from('order_items').select('*'),
-    supabase.from('customers').select('*'),
-    supabase.from('inventory_movements').select('*'),
-    supabase.from('site_settings').select('*'),
-    supabase.from('testimonials').select('*'),
-    supabase.from('activity_logs').select('*'),
-    supabase.from('cash_ledger').select('*'),
-    supabase.from('finance_settings').select('*'),
+    loadAllRows('products'),
+    loadAllRows('business_packages'),
+    loadAllRows('business_package_items'),
+    loadAllRows('orders'),
+    loadAllRows('order_items'),
+    loadAllRows('customers'),
+    loadAllRows('inventory_movements'),
+    loadAllRows('site_settings'),
+    loadAllRows('testimonials'),
+    loadAllRows('activity_logs'),
+    loadAllRows('cash_ledger'),
+    loadAllRows('finance_settings'),
   ]);
 
   return {
     exported_at: new Date().toISOString(),
-    products: products.data || [],
-    business_packages: packages.data || [],
-    business_package_items: packageItems.data || [],
-    orders: orders.data || [],
-    order_items: orderItems.data || [],
-    customers: customers.data || [],
-    inventory_movements: movements.data || [],
-    site_settings: settings.data || [],
-    testimonials: testimonials.data || [],
-    activity_logs: logs.data || [],
-    cash_ledger: ledger.data || [],
-    finance_settings: financeSettings.data || [],
+    products,
+    business_packages: packages,
+    business_package_items: packageItems,
+    orders,
+    order_items: orderItems,
+    customers,
+    inventory_movements: movements,
+    site_settings: settings,
+    testimonials,
+    activity_logs: logs,
+    cash_ledger: ledger,
+    finance_settings: financeSettings,
   };
 }
 
 export async function loadFinanceSummary(dateFrom?: string, dateTo?: string): Promise<FinanceSummary> {
+  const { data: aggregate, error: aggregateError } = await supabase.rpc('get_admin_finance_summary', {
+    p_from: dateFrom || null,
+    p_to: dateTo || null,
+  });
+  if (!aggregateError && aggregate) return aggregate as unknown as FinanceSummary;
+
+  // Backward-compatible fallback while the aggregate RPC migration is rolling out.
   const [settingsRes, ledgerRes] = await Promise.all([
     supabase.from('finance_settings').select('*'),
     supabase.from('cash_ledger').select('*').order('transaction_date', { ascending: false }),

@@ -58,7 +58,7 @@ async function uploadThumbnail(targetPath, buffer) {
   const { error } = await supabase.storage.from('products').upload(targetPath, buffer, {
     contentType: 'image/webp',
     cacheControl: '31536000',
-    upsert: true,
+    upsert: false,
   });
   if (error) throw new Error(error.message);
 }
@@ -66,22 +66,29 @@ async function uploadThumbnail(targetPath, buffer) {
 async function backfillProducts() {
   const { data, error } = await supabase
     .from('products')
-    .select('id,product_code,image_path,images,thumbnail_path')
-    .is('thumbnail_path', null)
+    .select('id,product_code,image_path,images,thumbnail_path,image_thumbnail_paths')
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
 
   let processed = 0;
   for (const product of data || []) {
     if (processed >= limit) break;
-    const sourcePath = storagePathFromValue(product.image_path || product.images?.[0]);
-    if (!sourcePath) continue;
-    const targetPath = `thumbnails/products/${product.id}.webp`;
-    console.log(`${dryRun ? '[dry-run] ' : ''}product ${product.product_code || product.id}: ${sourcePath} -> ${targetPath}`);
+    const sources = (product.images?.length ? product.images : [product.image_path]).map(storagePathFromValue).filter(Boolean).slice(0, 6);
+    if (sources.length === 0 || (product.image_thumbnail_paths || []).length >= sources.length) continue;
+    const targets = [];
+    for (const [index, sourcePath] of sources.entries()) {
+      const existing = product.image_thumbnail_paths?.[index] || (index === 0 ? product.thumbnail_path : null);
+      const targetPath = existing || `thumbnails/products/${product.id}-${index}-${Date.now()}.webp`;
+      targets.push(targetPath);
+      if (existing) continue;
+      console.log(`${dryRun ? '[dry-run] ' : ''}product ${product.product_code || product.id} #${index + 1}: ${sourcePath} -> ${targetPath}`);
+      if (!dryRun) {
+        const thumbnail = await createThumbnailBuffer(sourcePath);
+        await uploadThumbnail(targetPath, thumbnail);
+      }
+    }
     if (!dryRun) {
-      const thumbnail = await createThumbnailBuffer(sourcePath);
-      await uploadThumbnail(targetPath, thumbnail);
-      const { error: updateError } = await supabase.from('products').update({ thumbnail_path: targetPath }).eq('id', product.id);
+      const { error: updateError } = await supabase.from('products').update({ thumbnail_path: targets[0] || null, image_thumbnail_paths: targets }).eq('id', product.id);
       if (updateError) throw new Error(updateError.message);
     }
     processed += 1;

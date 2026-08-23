@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { CartProvider } from './lib/cart';
 import { ThemeProvider } from './lib/theme';
 import Navbar from './components/Navbar';
@@ -6,17 +6,24 @@ import Footer from './components/Footer';
 import WhatsAppButton from './components/WhatsAppButton';
 import CartDrawer from './components/CartDrawer';
 import { AlertProvider } from './components/AlertProvider';
-import Home from './pages/Home';
-import Shop from './pages/Shop';
-import ProductDetail from './pages/ProductDetail';
-import Checkout from './pages/Checkout';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import Rules from './pages/Rules';
-import AdminLogin from './pages/admin/AdminLogin';
-import AdminLayout from './pages/admin/AdminLayout';
 import { supabase } from './lib/supabase';
-import { releaseExpiredKeeps } from './lib/business';
+
+const Home = lazy(() => import('./pages/Home'));
+const Shop = lazy(() => import('./pages/Shop'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const About = lazy(() => import('./pages/About'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Rules = lazy(() => import('./pages/Rules'));
+const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+
+const PageFallback = () => (
+  <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-12 sm:px-6 lg:px-8" aria-label="Memuat halaman">
+    <div className="skeleton h-8 w-56" />
+    <div className="skeleton h-64 w-full" />
+  </div>
+);
 
 type Page = 'home' | 'shop' | 'product' | 'checkout' | 'about' | 'contact' | 'rules' | 'admin' | 'wishlist';
 
@@ -50,12 +57,6 @@ function App() {
   const [search, setSearch] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    releaseExpiredKeeps().catch(() => {
-      // Non-blocking; old keeps will also be cleaned from admin pages.
-    });
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -156,11 +157,13 @@ function App() {
         </ThemeProvider>
       );
     }
-    if (!isAdmin) return <AdminLogin onLogin={() => setIsAdmin(true)} />;
+    if (!isAdmin) return <Suspense fallback={<PageFallback />}><AdminLogin onLogin={() => setIsAdmin(true)} /></Suspense>;
     return (
       <ThemeProvider>
         <AlertProvider>
-          <AdminLayout onLogout={() => { setIsAdmin(false); navigate('home'); }} />
+          <Suspense fallback={<PageFallback />}>
+            <AdminLayout onLogout={() => { setIsAdmin(false); navigate('home'); }} />
+          </Suspense>
         </AlertProvider>
       </ThemeProvider>
     );
@@ -173,6 +176,7 @@ function App() {
           <div className="flex min-h-screen flex-col bg-primary-50 dark:bg-secondary-950">
             <Navbar onNavigate={navigate} onSearch={handleSearch} currentPage={page} />
             <main className="flex-1">
+              <Suspense fallback={<PageFallback />}>
               {page === 'home' && <Home onNavigate={navigate} />}
               {page === 'shop' && (
                 <Shop
@@ -195,6 +199,7 @@ function App() {
                   <button onClick={() => navigate('shop')} className="mt-6 btn-primary">Lihat Koleksi</button>
                 </div>
               )}
+              </Suspense>
             </main>
             <Footer onNavigate={navigate} />
             <WhatsAppButton />

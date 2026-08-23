@@ -27,6 +27,21 @@ export default function AdminReports() {
 
     const startISO = startDate.toISOString();
 
+    const { data: aggregateReport, error: aggregateError } = await supabase.rpc('get_admin_report', {
+      p_type: reportType,
+      p_start: startISO,
+      p_limit: 50,
+      p_offset: 0,
+    });
+    if (!aggregateError && aggregateReport) {
+      const payload = aggregateReport as any;
+      setSummary((current) => ({ ...current, ...(payload.summary || {}) }));
+      setData(payload.data || []);
+      setLoading(false);
+      return;
+    }
+
+    // Backward-compatible fallback while the aggregate RPC migration is rolling out.
     if (reportType === 'sales' || reportType === 'profit') {
       const { data: orders } = await supabase.from('orders').select('*').gte('created_at', startISO);
       const { data: items } = await supabase.from('order_items').select('*').gte('created_at', startISO);
@@ -98,9 +113,30 @@ export default function AdminReports() {
     setLoading(false);
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (data.length === 0) return;
-    const rows = data.map((d) => ({
+    const now = new Date();
+    let startDate = new Date();
+    if (period === 'daily') startDate = new Date(now.getTime() - 86400000);
+    else if (period === 'weekly') startDate = new Date(now.getTime() - 7 * 86400000);
+    else if (period === 'monthly') startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    else startDate = new Date(now.getFullYear(), 0, 1);
+
+    const exportData: any[] = [];
+    for (let offset = 0; offset < 5000; offset += 500) {
+      const { data: page, error } = await supabase.rpc('get_admin_report', {
+        p_type: reportType,
+        p_start: startDate.toISOString(),
+        p_limit: 500,
+        p_offset: offset,
+      });
+      if (error || !page) break;
+      const pageRows = ((page as any).data || []) as any[];
+      exportData.push(...pageRows);
+      if (pageRows.length < 500) break;
+    }
+    const source = exportData.length > 0 ? exportData : data;
+    const rows = source.map((d) => ({
       Tanggal: formatDate(d.date),
       Kode: d.order,
       Nama: d.customer,

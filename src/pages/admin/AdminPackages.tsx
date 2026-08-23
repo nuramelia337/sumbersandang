@@ -16,6 +16,7 @@ import {
   PRODUCT_CATEGORY_COPY,
   PRODUCT_CATEGORY_SLUGS,
   productAvailabilityFromStock,
+  removeStorageImages,
   uploadImageWithThumbnail,
 } from '../../lib/business';
 
@@ -51,7 +52,7 @@ export default function AdminPackages() {
     setLoading(true);
     const [pkgs, prods, cats] = await Promise.all([
       loadPackages(true),
-      supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('name'),
+      supabase.from('products').select('*').eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1).order('name').limit(200),
       supabase.from('categories').select('*').order('sort_order'),
     ]);
     setPackages(pkgs);
@@ -138,11 +139,13 @@ export default function AdminPackages() {
     setSaving(true);
     let coverPath = editing?.cover_image_path || null;
     let thumbnailPath = editing?.thumbnail_path || null;
+    let uploadedCoverPaths: string[] = [];
     if (coverBlob) {
       try {
         const uploadedCover = await uploadImageWithThumbnail(coverBlob, 'packages');
         coverPath = uploadedCover.path;
         thumbnailPath = uploadedCover.thumbnailPath;
+        uploadedCoverPaths = [uploadedCover.path, uploadedCover.thumbnailPath];
       } catch (err: any) {
         showAlert({ title: 'Upload cover gagal', message: err.message, variant: 'error' });
         setSaving(false);
@@ -168,6 +171,7 @@ export default function AdminPackages() {
       : await supabase.from('business_packages').insert(payload).select('id').single();
 
     if (result.error || !result.data) {
+      await removeStorageImages(uploadedCoverPaths).catch(() => undefined);
       showAlert({ title: 'Gagal menyimpan paket', message: result.error?.message || 'Unknown error', variant: 'error' });
       setSaving(false);
       return;
@@ -212,7 +216,6 @@ export default function AdminPackages() {
 
         await logActivity('package_deleted', 'business_package', pkg.id, `Deleted package: ${pkg.name}`);
         setPackages((prev) => prev.filter((item) => item.id !== pkg.id));
-        loadData();
       },
     });
   };

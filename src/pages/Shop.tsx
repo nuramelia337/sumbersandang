@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BadgePercent, BriefcaseBusiness, Clock3, Gem, Shirt } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import type { BusinessPackage, Product, Category } from '../lib/types';
 import ProductCard from '../components/ProductCard';
 import PackageCard from '../components/PackageCard';
-import { loadPublicPackages, PRODUCT_CATEGORY_COPY, PRODUCT_CATEGORY_SLUGS, PUBLIC_CATEGORY_SELECT, PUBLIC_PRODUCT_CARD_SELECT } from '../lib/business';
+import { listPublicProducts, loadPublicCatalogMeta, PRODUCT_CATEGORY_COPY, PRODUCT_CATEGORY_SLUGS } from '../lib/business';
 
 interface Props {
   onNavigate: (page: string, data?: any) => void;
@@ -18,14 +17,15 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   const [products, setProducts] = useState<Product[]>([]);
   const [packages, setPackages] = useState<BusinessPackage[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'price-low' | 'price-high'>('newest');
   const [selectedCat, setSelectedCat] = useState<string>(initialCategory || 'all');
   const [search, setSearch] = useState(initialSearch || '');
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch || '');
-  const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState<Record<string, string | number> | null>(null);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
     if (initialCategory) setSelectedCat(initialCategory);
@@ -38,56 +38,72 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
   }, [search]);
 
   useEffect(() => {
-    setVisibleLimit(PAGE_SIZE);
-  }, [selectedCat, debouncedSearch, sortBy]);
-
-  useEffect(() => {
+    let active = true;
     (async () => {
-      const { data: cats } = await supabase.from('categories').select(PUBLIC_CATEGORY_SELECT).order('sort_order');
-      setCategories((cats || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
-      setPackages(await loadPublicPackages(12));
-      setCategoriesLoaded(true);
+      try {
+        const meta = await loadPublicCatalogMeta();
+        if (!active) return;
+        setCategories(meta.categories.filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
+        setPackages(meta.packages);
+      } catch {
+        if (active) { setCategories([]); setPackages([]); }
+      }
     })();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
+    const version = ++requestVersion.current;
     (async () => {
       setLoading(true);
+      setProducts([]);
+      setCursor(null);
       if (selectedCat === 'packages') {
-        setProducts([]);
+        setHasMore(false);
         setLoading(false);
         return;
       }
-      if (selectedCat !== 'all' && !categoriesLoaded) {
-        return;
+      try {
+        const page = await listPublicProducts({
+          categorySlug: selectedCat === 'all' ? null : selectedCat,
+          search: debouncedSearch,
+          sort: sortBy,
+          limit: PAGE_SIZE,
+        });
+        if (requestVersion.current !== version) return;
+        setProducts(page.items);
+        setHasMore(page.has_more);
+        setCursor(page.next_cursor);
+      } catch {
+        if (requestVersion.current === version) { setProducts([]); setHasMore(false); setCursor(null); }
+      } finally {
+        if (requestVersion.current === version) setLoading(false);
       }
-
-      let q = supabase.from('products').select(PUBLIC_PRODUCT_CARD_SELECT).eq('status', 'active').eq('availability_status', 'ready').eq('stock', 1);
-      if (selectedCat !== 'all') {
-        const cat = categories.find((c) => c.slug === selectedCat);
-        if (!cat) {
-          setProducts([]);
-          setHasMore(false);
-          setLoading(false);
-          return;
-        }
-        q = q.eq('category_id', cat.id);
-      }
-      if (debouncedSearch) {
-        const term = debouncedSearch.replace(/[,%{}]/g, ' ');
-        q = q.or(`name.ilike.%${term}%,brand.ilike.%${term}%,product_code.ilike.%${term}%`);
-      }
-      if (sortBy === 'price-low') q = q.order('selling_price', { ascending: true });
-      else if (sortBy === 'price-high') q = q.order('selling_price', { ascending: false });
-      else q = q.order('created_at', { ascending: false });
-
-      const { data } = await q.limit(visibleLimit + 1);
-      const rows = (data || []) as unknown as Product[];
-      setHasMore(rows.length > visibleLimit);
-      setProducts(rows.slice(0, visibleLimit));
-      setLoading(false);
     })();
-  }, [selectedCat, debouncedSearch, sortBy, categories, categoriesLoaded, visibleLimit]);
+  }, [selectedCat, debouncedSearch, sortBy]);
+
+  const loadMore = async () => {
+    if (!cursor || loadingMore) return;
+    const version = requestVersion.current;
+    setLoadingMore(true);
+    try {
+      const page = await listPublicProducts({
+        categorySlug: selectedCat === 'all' ? null : selectedCat,
+        search: debouncedSearch,
+        sort: sortBy,
+        cursor,
+        limit: PAGE_SIZE,
+      });
+      if (requestVersion.current !== version) return;
+      setProducts((current) => [...current, ...page.items]);
+      setHasMore(page.has_more);
+      setCursor(page.next_cursor);
+    } catch {
+      if (requestVersion.current === version) setHasMore(false);
+    } finally {
+      if (requestVersion.current === version) setLoadingMore(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -213,10 +229,11 @@ export default function Shop({ onNavigate, initialCategory, initialSearch }: Pro
             <div className="mt-8 flex justify-center">
               <button
                 type="button"
-                onClick={() => setVisibleLimit((limit) => limit + PAGE_SIZE)}
+                onClick={loadMore}
+                disabled={loadingMore}
                 className="btn-secondary"
               >
-                Muat Lagi
+                {loadingMore ? 'Memuat...' : 'Muat Lagi'}
               </button>
             </div>
           )}
