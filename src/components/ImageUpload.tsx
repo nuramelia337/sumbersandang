@@ -1,7 +1,16 @@
 import { useRef, useState, useCallback } from 'react';
 import { Camera, Upload, Image as ImageIcon, Wand2, X, Check, Loader2 } from 'lucide-react';
 import { removeBackground } from '../lib/imageUtils';
-import { assertImageUploadFile, formatFileSize, MAX_IMAGE_UPLOAD_BYTES, MAX_PRODUCT_IMAGES, optimizeImage, storageImageUrl, TARGET_IMAGE_UPLOAD_BYTES } from '../lib/business';
+import {
+  assertImageUploadFile,
+  formatFileSize,
+  MAX_IMAGE_UPLOAD_BYTES,
+  MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES,
+  MAX_PRODUCT_IMAGES,
+  optimizeImage,
+  storageImageUrl,
+  TARGET_IMAGE_UPLOAD_BYTES,
+} from '../lib/business';
 import { useAlert } from './AlertProvider';
 
 interface ImageUploadProps {
@@ -30,6 +39,7 @@ export default function ImageUpload({
     (currentImagePath ? [storageImageUrl(currentImagePath)] : currentImageUrl ? [storageImageUrl(currentImageUrl)] : []);
   const [previews, setPreviews] = useState<string[]>(initialPreviews);
   const [processing, setProcessing] = useState(false);
+  const [processingLabel, setProcessingLabel] = useState('Memproses foto...');
   const [showOptions, setShowOptions] = useState(false);
   const [bgRemoved, setBgRemoved] = useState(false);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
@@ -47,10 +57,14 @@ export default function ImageUpload({
     let optimized: File[];
     try {
       files.forEach(assertImageUploadFile);
-      optimized = await Promise.all(files.map(async (file) => {
+      optimized = [];
+      // Compress sequentially to avoid decoding several full-resolution phone
+      // photos into memory at the same time on iOS/Android browsers.
+      for (const [index, file] of files.entries()) {
+        setProcessingLabel(files.length > 1 ? `Memproses foto ${index + 1} dari ${files.length}...` : 'Memproses foto...');
         const blob = await optimizeImage(file);
-        return new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
-      }));
+        optimized.push(new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' }));
+      }
     } catch (err) {
       showAlert({
         title: 'Foto tidak bisa dipakai',
@@ -58,9 +72,11 @@ export default function ImageUpload({
         variant: 'error',
       });
       setProcessing(false);
+      setProcessingLabel('Memproses foto...');
       return;
     }
     setProcessing(false);
+    setProcessingLabel('Memproses foto...');
     if (multiple) {
       setSelectedFiles(optimized);
       setPreviews(optimized.map((file) => URL.createObjectURL(file)));
@@ -81,15 +97,18 @@ export default function ImageUpload({
     setProcessing(true);
     try {
       if (multiple) {
-        const processed = await Promise.all(selectedFiles.map(async (file) => {
+        const processed: File[] = [];
+        for (const [index, file] of selectedFiles.entries()) {
+          setProcessingLabel(`Merapikan foto ${index + 1} dari ${selectedFiles.length}...`);
           const noBg = await removeBackground(file, 38, 2);
           const optimized = await optimizeImage(noBg, 1.1);
-          return new File([optimized], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' });
-        }));
+          processed.push(new File([optimized], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' }));
+        }
         setSelectedFiles(processed);
         setPreviews(processed.map((file) => URL.createObjectURL(file)));
         onImagesReady?.(processed);
       } else if (originalFile) {
+        setProcessingLabel('Merapikan latar foto...');
         const blob = await removeBackground(originalFile, 38, 2);
         const optimized = await optimizeImage(blob, 1.1);
         setPreviews([URL.createObjectURL(optimized)]);
@@ -105,6 +124,7 @@ export default function ImageUpload({
       });
     } finally {
       setProcessing(false);
+      setProcessingLabel('Memproses foto...');
     }
   }, [multiple, originalFile, selectedFiles, onImageReady, onImagesReady, showAlert]);
 
@@ -138,7 +158,7 @@ export default function ImageUpload({
                   <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-                      <span className="text-sm font-medium text-neutral-700">Memproses...</span>
+                      <span className="px-3 text-center text-sm font-medium text-neutral-700">{processingLabel}</span>
                     </div>
                   </div>
                 )}
@@ -174,7 +194,16 @@ export default function ImageUpload({
           <input ref={fileInputRef} type="file" multiple={multiple} accept="image/*" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
 
-          {showOptions ? (
+          {processing ? (
+            <div
+              className="flex min-h-44 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-primary-200 bg-primary-50 p-6 text-primary-700"
+              role="status"
+              aria-live="polite"
+            >
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="text-center text-sm font-semibold">{processingLabel}</span>
+            </div>
+          ) : showOptions ? (
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-primary-300 bg-primary-50 p-6 transition hover:border-primary-500 hover:bg-primary-100">
                 <Camera className="h-8 w-8 text-primary-600" />
@@ -191,7 +220,10 @@ export default function ImageUpload({
             <button type="button" onClick={() => setShowOptions(true)} className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-8 transition hover:border-primary-400 hover:bg-primary-50">
               <Upload className="h-10 w-10 text-neutral-400" />
               <span className="text-sm font-semibold text-neutral-700">{multiple ? 'Upload Banyak Foto' : 'Upload Foto Produk'}</span>
-                <span className="text-xs text-neutral-500">Maks {formatFileSize(MAX_IMAGE_UPLOAD_BYTES)}; disimpan sekitar {formatFileSize(TARGET_IMAGE_UPLOAD_BYTES)}</span>
+              <span className="text-xs text-neutral-500">
+                Maks {formatFileSize(MAX_IMAGE_UPLOAD_BYTES)}; biasanya {formatFileSize(TARGET_IMAGE_UPLOAD_BYTES)}, maksimal{' '}
+                {formatFileSize(MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES)}
+              </span>
             </button>
           )}
         </div>

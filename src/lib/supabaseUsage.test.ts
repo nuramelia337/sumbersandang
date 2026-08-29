@@ -33,10 +33,16 @@ describe('Supabase usage guardrails', () => {
 
   it('enforces immutable cached uploads and server-side access controls', () => {
     const business = read('src/lib/business.ts');
+    const imageUpload = read('src/components/ImageUpload.tsx');
     const migration = read('supabase/migrations/20260823090000_supabase_usage_hardening.sql');
     const lockdown = read('supabase/migrations/20260823100000_lock_down_public_access.sql');
     expect(business).toContain("cacheControl: '31536000'");
     expect(business).toContain('upsert: false');
+    expect(business).toContain('MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES = 900 * 1024');
+    expect(business).toContain('if (highQualityFallback) return highQualityFallback');
+    expect(imageUpload).toContain('for (const [index, file] of files.entries())');
+    expect(imageUpload).toContain('for (const [index, file] of selectedFiles.entries())');
+    expect(imageUpload).not.toContain('Promise.all');
     expect(migration).toContain('CREATE OR REPLACE FUNCTION create_checkout_order_internal');
     expect(migration).toContain("DROP POLICY IF EXISTS");
     expect(migration).toContain('TO anon, authenticated');

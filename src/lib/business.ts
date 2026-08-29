@@ -76,8 +76,14 @@ export function normalizeStorageLocation(value?: string | null): StorageLocation
   return value && value in STORAGE_LOCATION_LABELS ? value as StorageLocation : 'keranjang_1';
 }
 
-export const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+// The source file is compressed in the browser before it is uploaded. Modern
+// phone photos can easily exceed 5 MiB even when their decoded resolution is
+// still within our safe pixel budget.
+export const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024;
 export const TARGET_IMAGE_UPLOAD_BYTES = 350 * 1024;
+// The Storage bucket has a 1 MiB hard limit. Leave enough headroom for API and
+// encoder differences while allowing detailed mobile photos to stay usable.
+export const MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES = 900 * 1024;
 export const TARGET_THUMBNAIL_UPLOAD_BYTES = 60 * 1024;
 export const MAX_IMAGE_PIXELS = 25_000_000;
 export const MAX_PRODUCT_IMAGES = 6;
@@ -203,7 +209,8 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function assertImageUploadFile(file: File) {
-  if (!file.type.startsWith('image/')) {
+  const supportedExtension = /\.(?:jpe?g|png|webp|heic|heif)$/i.test(file.name);
+  if (!file.type.startsWith('image/') && !supportedExtension) {
     throw new Error('File harus berupa gambar.');
   }
   if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
@@ -238,6 +245,7 @@ export async function optimizeImage(file: Blob, brightness = 1.08, targetBytes =
   if (img.width * img.height > MAX_IMAGE_PIXELS) throw new Error('Resolusi gambar maksimal 25 megapiksel.');
   const dimensions = [1200, 1080, 960, 840, 720];
   const qualities = [0.78, 0.7, 0.62, 0.54, 0.46];
+  let highQualityFallback: Blob | null = null;
   for (const maxSize of dimensions) {
     const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
     const canvas = document.createElement('canvas');
@@ -251,9 +259,36 @@ export async function optimizeImage(file: Blob, brightness = 1.08, targetBytes =
     for (const quality of qualities) {
       const output = await canvasToBlob(canvas, 'image/webp', quality);
       if (output.size <= targetBytes) return output;
+      if (!highQualityFallback && output.size <= MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES) {
+        highQualityFallback = output;
+      }
     }
   }
-  throw new Error(`Gambar tidak dapat dipadatkan hingga ${formatFileSize(targetBytes)}. Gunakan foto yang lebih sederhana.`);
+
+  // 350 KiB is an egress target, not a reason to block a valid photo. If the
+  // image is unusually detailed, keep the first (highest-quality) result that
+  // still fits safely below the Storage bucket's 1 MiB limit.
+  if (highQualityFallback) return highQualityFallback;
+
+  // Emergency pass for extremely noisy images. This runs only when every
+  // normal 720–1200 px result is still above the hard upload ceiling.
+  for (const maxSize of [640, 560, 480]) {
+    const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.filter = `brightness(${brightness}) contrast(1.04) saturate(1.04)`;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.42, 0.36, 0.3]) {
+      const output = await canvasToBlob(canvas, 'image/webp', quality);
+      if (output.size <= MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES) return output;
+    }
+  }
+
+  throw new Error('Foto terlalu besar untuk diproses di HP ini. Coba potong foto atau gunakan resolusi kamera yang lebih rendah.');
 }
 
 export async function createThumbnailImage(file: Blob, maxSize = 480, targetBytes = TARGET_THUMBNAIL_UPLOAD_BYTES): Promise<Blob> {
