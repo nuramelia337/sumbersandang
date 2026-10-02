@@ -17,7 +17,7 @@ import {
   STORAGE_LOCATIONS,
   STORAGE_LOCATION_LABELS,
 } from '../../lib/business';
-import { Plus, Edit, Trash2, X, Search, Package, CheckCircle, Loader2, Clock, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Search, Package, CheckCircle, Loader2, Clock, MapPin, BadgePercent } from 'lucide-react';
 
 type Tab = 'all' | ProductAvailabilityStatus;
 
@@ -56,6 +56,9 @@ export default function AdminProducts() {
   const [tab, setTab] = useState<Tab>('all');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [promoPrice, setPromoPrice] = useState(0);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [form, setForm] = useState<any>(emptyForm);
   const { showAlert, showConfirm } = useAlert();
 
@@ -63,13 +66,28 @@ export default function AdminProducts() {
 
   const loadData = async () => {
     setLoading(true);
-    const [prods, cats] = await Promise.all([
-      supabase.from('products').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('categories').select('*').order('sort_order'),
-    ]);
-    setProducts((prods.data || []).map((p) => ({ ...p, availability_status: productAvailabilityFromStock(p) })));
-    setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
-    setLoading(false);
+    try {
+      const categoriesPromise = supabase.from('categories').select('*').order('sort_order');
+      const allProducts: Product[] = [];
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase.from('products').select('*')
+          .order('created_at', { ascending: false }).order('id', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        allProducts.push(...((data || []) as Product[]));
+        if (!data || data.length < pageSize) break;
+      }
+      const cats = await categoriesPromise;
+      if (cats.error) throw cats.error;
+      setProducts(allProducts.map((p) => ({ ...p, availability_status: productAvailabilityFromStock(p) })));
+      setCategories((cats.data || []).filter((cat) => PRODUCT_CATEGORY_SLUGS.includes(cat.slug as any)));
+      setSelectedIds((previous) => previous.filter((id) => allProducts.some((product) => product.id === id)));
+    } catch (error) {
+      showAlert({ title: 'Gagal memuat produk', message: error instanceof Error ? error.message : 'Coba muat ulang halaman.', variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const counts = {
@@ -98,6 +116,50 @@ export default function AdminProducts() {
 
   const sizes = Array.from(new Set(products.map((p) => (p.size || '').trim().toLowerCase()).filter(Boolean)));
   const colors = Array.from(new Set(products.map((p) => (p.color || '').trim().toLowerCase()).filter(Boolean)));
+  const normalCategory = categories.find((category) => category.slug === 'normal');
+  const promoCategory = categories.find((category) => category.slug === 'promo');
+  const selectable = filtered.filter((product) => product.category_id === normalCategory?.id && productAvailabilityFromStock(product) === 'ready');
+  const selected = products.filter((product) => selectedIds.includes(product.id) && product.category_id === normalCategory?.id && productAvailabilityFromStock(product) === 'ready');
+  const allVisibleSelected = selectable.length > 0 && selectable.every((product) => selectedIds.includes(product.id));
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]);
+  };
+
+  const moveSelectedToPromo = () => {
+    if (!promoCategory || selected.length === 0 || !Number.isSafeInteger(promoPrice) || promoPrice <= 0) {
+      showAlert({ title: 'Harga promo belum valid', message: 'Pilih produk Normal yang Ready dan isi harga jual promo lebih dari Rp 0.', variant: 'warning' });
+      return;
+    }
+    showConfirm({
+      title: 'Pindahkan produk ke Promo?',
+      message: `${selected.length} produk Normal akan dipindahkan ke Promo dengan harga jual ${formatIDR(promoPrice)} per produk.`,
+      variant: 'warning',
+      confirmLabel: 'Terapkan Promo',
+      onConfirm: async () => {
+        setBulkSaving(true);
+        try {
+          const { data, error } = await supabase.from('products')
+            .update({ category_id: promoCategory.id, selling_price: promoPrice, updated_at: new Date().toISOString() })
+            .in('id', selected.map((product) => product.id))
+            .eq('category_id', normalCategory!.id).eq('availability_status', 'ready').eq('stock', 1)
+            .select('id');
+          if (error) throw error;
+          if (data?.length !== selected.length) {
+            await loadData();
+            throw new Error(`${data?.length || 0} dari ${selected.length} produk berhasil diubah. Daftar diperbarui; periksa pilihan yang tersisa.`);
+          }
+          await logActivity('products_moved_to_promo', 'product', undefined, `Moved ${data.length} Normal products to Promo at ${formatIDR(promoPrice)}`);
+          setSelectedIds([]);
+          setPromoPrice(0);
+          await loadData();
+          showAlert({ title: 'Promo diterapkan', message: `${data.length} produk berhasil dipindahkan ke Promo.`, variant: 'success' });
+        } finally {
+          setBulkSaving(false);
+        }
+      },
+    });
+  };
 
   const openAdd = () => {
     setEditing(null);
@@ -314,6 +376,31 @@ export default function AdminProducts() {
         </select>
       </div>
 
+      <div className="card space-y-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 font-semibold"><BadgePercent size={18} /> Ubah ke Promo</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">Pilih produk Normal yang Ready, lalu tetapkan satu harga jual untuk semuanya.</p>
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={allVisibleSelected} disabled={selectable.length === 0 || bulkSaving}
+              onChange={() => setSelectedIds((previous) => allVisibleSelected
+                ? previous.filter((id) => !selectable.some((product) => product.id === id))
+                : Array.from(new Set([...previous, ...selectable.map((product) => product.id)])))} />
+            Pilih semua hasil ({selectable.length})
+          </label>
+        </div>
+        {selected.length > 0 && <div className="flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-3 dark:border-neutral-700">
+          <span className="text-sm font-medium">{selected.length} produk dipilih</span>
+          <div className="w-44"><CurrencyInput value={promoPrice} onValueChange={setPromoPrice} disabled={bulkSaving} /></div>
+          <button type="button" onClick={moveSelectedToPromo} disabled={bulkSaving || promoPrice <= 0} className="btn-primary">
+            {bulkSaving ? <Loader2 size={16} className="animate-spin" /> : <BadgePercent size={16} />}
+            {bulkSaving ? 'Memproses...' : 'Terapkan harga promo'}
+          </button>
+          <button type="button" onClick={() => setSelectedIds([])} disabled={bulkSaving} className="btn-secondary">Batal pilihan</button>
+        </div>}
+      </div>
+
       {loading ? (
         <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="skeleton h-16" />)}</div>
       ) : filtered.length === 0 ? (
@@ -325,6 +412,7 @@ export default function AdminProducts() {
             const availability = productAvailabilityFromStock(p);
             return (
               <div key={p.id} className="card p-4">
+                {p.category_id === normalCategory?.id && availability === 'ready' && <label className="mb-3 flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => toggleSelection(p.id)} disabled={bulkSaving} /> Pilih untuk promo</label>}
                 <div className="flex gap-3">
                   <img src={getProductImageUrl(p)} alt={p.name} loading="lazy" decoding="async" className="h-20 w-20 shrink-0 rounded-xl bg-neutral-50 object-contain" />
                   <div className="min-w-0 flex-1">
@@ -362,6 +450,7 @@ export default function AdminProducts() {
             <table className="w-full text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800">
                 <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Pilih</th>
                   <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Produk</th>
                   <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Kode</th>
                   <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Harga</th>
@@ -375,6 +464,7 @@ export default function AdminProducts() {
                   const availability = productAvailabilityFromStock(p);
                   return (
                     <tr key={p.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                      <td className="px-4 py-3">{p.category_id === normalCategory?.id && availability === 'ready' && <input type="checkbox" aria-label={`Pilih ${p.name} untuk promo`} checked={selectedIds.includes(p.id)} onChange={() => toggleSelection(p.id)} disabled={bulkSaving} />}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <img src={getProductImageUrl(p)} alt={p.name} loading="lazy" decoding="async" className="h-12 w-12 rounded-lg bg-neutral-50 object-contain" />

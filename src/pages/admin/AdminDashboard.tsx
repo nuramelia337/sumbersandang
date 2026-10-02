@@ -28,6 +28,7 @@ export default function AdminDashboard() {
     danaRevenue: 0,
     shopeepayRevenue: 0,
     cashRevenue: 0,
+    qrisRevenue: 0,
     totalBalance: 0,
     todaySold: 0,
     packagesSold: 0,
@@ -41,10 +42,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     (async () => {
-      const { data: aggregateData, error: aggregateError } = await supabase.rpc('get_admin_dashboard');
+      const [{ data: aggregateData, error: aggregateError }, { data: rpcQrisRevenue }] = await Promise.all([
+        supabase.rpc('get_admin_dashboard'),
+        supabase.rpc('get_admin_qris_revenue', { p_start: null }),
+      ]);
       if (!aggregateError && aggregateData) {
         const payload = aggregateData as any;
-        setStats((current) => ({ ...current, ...(payload.stats || {}) }));
+        setStats((current) => ({ ...current, ...(payload.stats || {}), qrisRevenue: Number(rpcQrisRevenue || 0) }));
         setRecentOrders(payload.recentOrders || []);
         setLowStockProducts(payload.lowStockProducts || []);
         setTopProducts(payload.topProducts || []);
@@ -85,6 +89,7 @@ export default function AdminDashboard() {
       const danaRevenue = validOrders.filter((o) => o.payment_method === 'dana').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const shopeepayRevenue = validOrders.filter((o) => o.payment_method === 'shopeepay').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      const qrisRevenue = validOrders.filter((o) => o.payment_method === 'qris').reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
       const totalCogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
       const grossProfit = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) - totalCogs;
@@ -140,6 +145,7 @@ export default function AdminDashboard() {
         danaRevenue,
         shopeepayRevenue,
         cashRevenue,
+        qrisRevenue,
         totalBalance: Number((financeSummary as any).totalBalance || 0),
         todaySold,
         packagesSold,
@@ -266,6 +272,10 @@ export default function AdminDashboard() {
               <span className="text-sm font-semibold text-accent-800 dark:text-accent-300">{PAYMENT_LABELS.cash}</span>
             </div>
             <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.cashRevenue)}</p>
+          </div>
+          <div className="rounded-xl bg-primary-50 p-4 dark:bg-primary-900/20">
+            <div className="flex items-center gap-2"><Wallet className="h-5 w-5 text-primary-600" /><span className="text-sm font-semibold text-primary-700 dark:text-primary-400">QRIS</span></div>
+            <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(stats.qrisRevenue)}</p>
           </div>
         </div>
       </div>

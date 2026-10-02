@@ -120,6 +120,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   dana: 'DANA',
   shopeepay: 'ShopeePay',
   cash: 'Cash',
+  qris: 'QRIS',
 };
 
 export const SHIPPING_LABELS: Record<ShippingMethod, string> = {

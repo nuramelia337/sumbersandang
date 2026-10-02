@@ -105,6 +105,7 @@ export const PAYMENT_METHODS = [
   { val: 'dana', label: 'DANA', desc: 'Transfer via DANA' },
   { val: 'shopeepay', label: 'ShopeePay', desc: 'Transfer via ShopeePay' },
   { val: 'cash', label: 'Cash', desc: 'Bayar tunai sesuai arahan admin' },
+  { val: 'qris', label: 'QRIS', desc: 'Scan QRIS toko; pembayaran dicek admin' },
 ];
 
 export const SHIPPING_METHODS = [

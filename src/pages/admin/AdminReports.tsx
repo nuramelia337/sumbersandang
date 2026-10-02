@@ -9,7 +9,7 @@ export default function AdminReports() {
   const [reportType, setReportType] = useState<'sales' | 'profit' | 'inventory' | 'customer'>('sales');
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
   const [data, setData] = useState<any[]>([]);
-  const [summary, setSummary] = useState({ revenue: 0, cogs: 0, profit: 0, orders: 0, items: 0, bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0, cashRevenue: 0 });
+  const [summary, setSummary] = useState({ revenue: 0, cogs: 0, profit: 0, orders: 0, items: 0, bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0, cashRevenue: 0, qrisRevenue: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,15 +27,15 @@ export default function AdminReports() {
 
     const startISO = startDate.toISOString();
 
-    const { data: aggregateReport, error: aggregateError } = await supabase.rpc('get_admin_report', {
-      p_type: reportType,
-      p_start: startISO,
-      p_limit: 50,
-      p_offset: 0,
-    });
+    const [{ data: aggregateReport, error: aggregateError }, { data: qrisRevenue }] = await Promise.all([
+      supabase.rpc('get_admin_report', { p_type: reportType, p_start: startISO, p_limit: 50, p_offset: 0 }),
+      (reportType === 'sales' || reportType === 'profit')
+        ? supabase.rpc('get_admin_qris_revenue', { p_start: startISO })
+        : Promise.resolve({ data: 0 }),
+    ]);
     if (!aggregateError && aggregateReport) {
       const payload = aggregateReport as any;
-      setSummary((current) => ({ ...current, ...(payload.summary || {}) }));
+      setSummary((current) => ({ ...current, ...(payload.summary || {}), qrisRevenue: Number(qrisRevenue || 0) }));
       setData(payload.data || []);
       setLoading(false);
       return;
@@ -57,7 +57,8 @@ export default function AdminReports() {
       const danaRevenue = validOrders.filter((o) => o.payment_method === 'dana').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const shopeepayRevenue = validOrders.filter((o) => o.payment_method === 'shopeepay').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-      setSummary({ revenue, cogs, profit, orders: validOrders.length, items: validItems.length, bcaRevenue, danaRevenue, shopeepayRevenue, cashRevenue });
+      const manualQrisRevenue = validOrders.filter((o) => o.payment_method === 'qris').reduce((s, o) => s + Number(o.total_amount || 0), 0);
+      setSummary({ revenue, cogs, profit, orders: validOrders.length, items: validItems.length, bcaRevenue, danaRevenue, shopeepayRevenue, cashRevenue, qrisRevenue: manualQrisRevenue });
       setData(validOrders.map((o) => ({
         date: o.created_at,
         order: o.order_number,
@@ -71,7 +72,7 @@ export default function AdminReports() {
       const prods = products || [];
       const totalValue = prods.reduce((s, p) => s + p.purchase_price * p.stock, 0);
       const totalSelling = prods.reduce((s, p) => s + p.selling_price * p.stock, 0);
-      setSummary({ revenue: totalSelling, cogs: totalValue, profit: totalSelling - totalValue, orders: prods.length, items: prods.reduce((s, p) => s + p.stock, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0, cashRevenue: 0 });
+      setSummary({ revenue: totalSelling, cogs: totalValue, profit: totalSelling - totalValue, orders: prods.length, items: prods.reduce((s, p) => s + p.stock, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0, cashRevenue: 0, qrisRevenue: 0 });
       setData(prods.map((p) => ({
         date: p.created_at,
         order: p.product_code,
@@ -100,7 +101,7 @@ export default function AdminReports() {
         })
         .sort((a, b) => b.counted_spending - a.counted_spending);
       const totalRevenue = custs.reduce((s, c) => s + c.counted_spending, 0);
-      setSummary({ revenue: totalRevenue, cogs: 0, profit: totalRevenue, orders: custs.length, items: custs.reduce((s, c) => s + c.counted_orders, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0, cashRevenue: 0 });
+      setSummary({ revenue: totalRevenue, cogs: 0, profit: totalRevenue, orders: custs.length, items: custs.reduce((s, c) => s + c.counted_orders, 0), bcaRevenue: 0, danaRevenue: 0, shopeepayRevenue: 0, cashRevenue: 0, qrisRevenue: 0 });
       setData(custs.map((c) => ({
         date: c.created_at,
         order: c.phone,
@@ -154,6 +155,7 @@ export default function AdminReports() {
       { Metrik: 'DANA', Nilai: summary.danaRevenue },
       { Metrik: 'ShopeePay', Nilai: summary.shopeepayRevenue },
       { Metrik: 'Cash', Nilai: summary.cashRevenue },
+      { Metrik: 'QRIS', Nilai: summary.qrisRevenue },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Ringkasan');
@@ -256,6 +258,10 @@ export default function AdminReports() {
             <div className="rounded-xl bg-accent-50 p-4 dark:bg-accent-900/20">
               <p className="text-sm font-semibold text-accent-800 dark:text-accent-300">{PAYMENT_LABELS.cash}</p>
               <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.cashRevenue)}</p>
+            </div>
+            <div className="rounded-xl bg-primary-50 p-4 dark:bg-primary-900/20">
+              <p className="text-sm font-semibold text-primary-700 dark:text-primary-400">{PAYMENT_LABELS.qris}</p>
+              <p className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-50">{formatIDR(summary.qrisRevenue)}</p>
             </div>
           </div>
         </div>

@@ -76,6 +76,10 @@ export default function AdminOrders() {
 
   const updateStatus = async (id: string, status: string) => {
     try {
+      const currentOrder = orders.find((order) => order.id === id);
+      if (status === 'completed' && currentOrder?.payment_method === 'qris' && currentOrder.payment_status !== 'paid') {
+        throw new Error('Verifikasi pembayaran QRIS dan tekan Konfirmasi QRIS diterima sebelum menyelesaikan pesanan.');
+      }
       const payload: Partial<Order> = { order_status: status as Order['order_status'], updated_at: new Date().toISOString() };
       if (status === 'shipped') payload.shipped_at = new Date().toISOString();
       if (status === 'completed') {
@@ -100,6 +104,24 @@ export default function AdminOrders() {
         variant: 'error',
       });
     }
+  };
+
+  const confirmQrisPayment = (order: Order) => {
+    showConfirm({
+      title: 'Konfirmasi pembayaran QRIS?',
+      message: `Pastikan transaksi ${order.order_number} sebesar ${formatIDR(order.total_amount)} sudah masuk sebelum menandai lunas.`,
+      variant: 'warning',
+      confirmLabel: 'Sudah diterima',
+      onConfirm: async () => {
+        const now = new Date().toISOString();
+        const { error } = await supabase.from('orders').update({ payment_status: 'paid', payment_confirmed_at: now, updated_at: now })
+          .eq('id', order.id).eq('payment_method', 'qris').neq('payment_status', 'paid').select('id').single();
+        if (error) throw new Error(error.message);
+        await logActivity('qris_payment_confirmed', 'order', order.id, `QRIS payment confirmed for ${order.order_number}`);
+        setOrders((current) => current.map((item) => item.id === order.id ? { ...item, payment_status: 'paid', payment_confirmed_at: now } : item));
+        setSelectedOrder((current) => current?.id === order.id ? { ...current, payment_status: 'paid', payment_confirmed_at: now } : current);
+      },
+    });
   };
 
   const viewOrder = async (order: Order) => {
@@ -344,6 +366,8 @@ export default function AdminOrders() {
                   </button>
                 </div>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">Status: {selectedOrder.payment_status}</p>
+                {selectedOrder.payment_method === 'qris' && selectedOrder.payment_status !== 'paid' &&
+                  <button type="button" onClick={() => confirmQrisPayment(selectedOrder)} className="btn-secondary mt-3">Konfirmasi QRIS diterima</button>}
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengiriman: {shippingLabel(selectedOrder.shipping_method)}</p>
                 {selectedOrder.shipping_method === 'pickup' && selectedOrder.notes && selectedOrder.notes.includes('Ambil:') && (
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">Pengambilan: {(selectedOrder.notes.match(/Ambil: (\S+ \S+)/) || [])[1] || '-'}</p>

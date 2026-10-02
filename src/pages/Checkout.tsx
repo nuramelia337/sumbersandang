@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle, MessageCircle, AlertCircle, Instagram, Calendar, Clock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, MessageCircle, AlertCircle, Instagram, Calendar, Clock, Download } from 'lucide-react';
 import { getCartItemCode, getCartItemName, getCartItemPrice, useCart } from '../lib/cart';
 import { supabase } from '../lib/supabase';
 import { formatIDR, waMessage, PAYMENT_METHODS, SHIPPING_METHODS } from '../lib/constants';
@@ -22,6 +22,20 @@ const toDateValue = (date: Date) => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const QRIS_IMAGE = '/qris-sumbersandang.jpeg';
+
+function QrisInstructions({ amount, orderCreated = false }: { amount: number; orderCreated?: boolean }) {
+  return <div className="mt-4 rounded-xl border border-primary-200 bg-white p-4 text-center dark:border-secondary-700 dark:bg-secondary-900">
+    <p className="font-semibold">Scan QRIS Sumber Sandanggg</p>
+    <p className="mt-1 text-sm text-neutral-700 dark:text-neutral-200">Bayar sesuai total {formatIDR(amount)}. Periksa nama penerima sebelum membayar.</p>
+    <img src={QRIS_IMAGE} alt="QRIS resmi Sumber Sandanggg untuk pembayaran manual" className="mx-auto mt-4 h-auto w-full max-w-xs" />
+    <a href={QRIS_IMAGE} download="qris-sumbersandang.jpeg" className="btn-secondary mt-4"><Download size={16} /> Simpan gambar QRIS</a>
+    <p className="mx-auto mt-3 max-w-md text-sm text-neutral-700 dark:text-neutral-200">{orderCreated
+      ? 'Jika memakai satu ponsel, simpan gambar lalu buka dari aplikasi pembayaran. Setelah membayar, kirim bukti dan nomor pesanan lewat WhatsApp. Admin akan memeriksa pembayaran secara manual.'
+      : 'Buat pesanan dahulu sebelum membayar agar nomor pesanan tercatat. Jika memakai satu ponsel, simpan gambar untuk dibuka dari aplikasi pembayaran.'}</p>
+  </div>;
+}
 
 export default function Checkout({ onNavigate }: Props) {
   const { items, subtotal, clearCart } = useCart();
@@ -175,7 +189,7 @@ export default function Checkout({ onNavigate }: Props) {
       const autoPaymentText = PAYMENT_LABELS[order.payment_method as keyof typeof PAYMENT_LABELS] || order.payment_method;
       const autoShippingText = SHIPPING_LABELS[order.shipping_method as keyof typeof SHIPPING_LABELS] || order.shipping_method;
       const autoWaMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${autoProductLines}\n\nHarga: ${formatIDR(Number(order.total_amount))}\n\nMetode Pembayaran: ${autoPaymentText}\n\nMetode Pengiriman: ${autoShippingText}${form.shipping === 'pickup' ? ` (${form.pickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${order.order_number}\nNo. Invoice: ${order.invoice_number}\n\n==========================`;
-      window.open(waMessage(autoWaMsg), '_blank', 'noopener,noreferrer');
+      if (order.payment_method !== 'qris') window.open(waMessage(autoWaMsg), '_blank', 'noopener,noreferrer');
       checkoutRequestId.current = crypto.randomUUID();
       setShowWaConfirm(false);
       clearCart();
@@ -198,7 +212,7 @@ export default function Checkout({ onNavigate }: Props) {
       const image = item.kind === 'product' ? getProductImageUrl(item.product, 'original') : packageImageUrl(item.package, 'original');
       return `- ${getCartItemName(item)} (${getCartItemCode(item)})\n  Harga: ${formatIDR(getCartItemPrice(item))}\n  Qty: ${item.quantity}\n  Link Foto Produk: ${image}`;
     }).join('\n');
-    const waMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}\n\n==========================`;
+    const waMsg = `==========================\n\nKONFIRMASI PESANAN\n\nNama: ${form.name}\n\nAlamat: ${form.address}, ${form.city}, ${form.province}\n\nInstagram: ${form.instagram || '-'}\n\nNomor WhatsApp: ${form.phone}\n\nProduk:\n${productLines}\n\nHarga: ${formatIDR(successTotal)}\n\nMetode Pembayaran: ${paymentText}\n\nMetode Pengiriman: ${shippingText}${successShipping === 'pickup' ? ` (${successPickupTime})` : ''}\n\nCatatan: ${form.notes || '-'}\n\nNo. Pesanan: ${orderId}\nNo. Invoice: ${invoiceNo}${successPayment === 'qris' ? '\n\nSaya sudah membayar via QRIS. Bukti pembayaran saya lampirkan di chat ini.' : ''}\n\n==========================`;
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center justify-center px-4 py-16 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success-100 text-success-600">
@@ -234,12 +248,13 @@ export default function Checkout({ onNavigate }: Props) {
             <span className="text-lg font-bold text-primary-600">{formatIDR(successTotal)}</span>
           </div>
         </div>
+        {successPayment === 'qris' && <QrisInstructions amount={successTotal} orderCreated />}
         <div className="mt-6 flex w-full items-start gap-3 rounded-2xl border-2 border-success-500 bg-success-50 p-4 text-left dark:border-success-700 dark:bg-success-900/20">
           <MessageCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-success-700 dark:text-success-400" />
           <div>
-            <p className="text-sm font-bold text-success-800 dark:text-success-300">Wajib konfirmasi via WhatsApp</p>
+            <p className="text-sm font-bold text-success-800 dark:text-success-300">{successPayment === 'qris' ? 'Kirim bukti QRIS via WhatsApp' : 'Wajib konfirmasi via WhatsApp'}</p>
             <p className="mt-1 text-sm text-success-700 dark:text-success-300">
-              Jika WhatsApp belum terbuka, tekan tombol di bawah agar pesanan masuk ke chat admin.
+              {successPayment === 'qris' ? 'Setelah membayar, tekan tombol di bawah dan lampirkan bukti transaksi di chat admin.' : 'Jika WhatsApp belum terbuka, tekan tombol di bawah agar pesanan masuk ke chat admin.'}
             </p>
           </div>
         </div>
@@ -249,7 +264,7 @@ export default function Checkout({ onNavigate }: Props) {
           rel="noopener noreferrer"
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-success-500 px-8 py-3.5 text-sm font-semibold text-white transition-all hover:bg-success-600"
         >
-          <MessageCircle size={18} /> Konfirmasi via WhatsApp
+          <MessageCircle size={18} /> {successPayment === 'qris' ? 'Kirim bukti via WhatsApp' : 'Konfirmasi via WhatsApp'}
         </a>
         <button onClick={() => onNavigate('home')} className="mt-4 btn-ghost">
           Kembali ke Beranda
@@ -281,14 +296,16 @@ export default function Checkout({ onNavigate }: Props) {
               Wajib Konfirmasi Pesanan
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-warning-900 dark:text-warning-100">
-              Tekan tombol di bawah untuk membuat pesanan dan mengirim format konfirmasi ke WhatsApp admin. Pesanan belum tercatat jika Anda membatalkan langkah ini.
+              {form.payment === 'qris'
+                ? 'Buat pesanan terlebih dahulu. Setelah pesanan tercatat, bayar sesuai total lewat QRIS dan kirim bukti transaksi ke WhatsApp admin.'
+                : 'Tekan tombol di bawah untuk membuat pesanan dan mengirim format konfirmasi ke WhatsApp admin. Pesanan belum tercatat jika Anda membatalkan langkah ini.'}
             </p>
             <div className="mt-6 flex gap-3">
               <button type="button" onClick={() => setShowWaConfirm(false)} disabled={loading} className="btn-secondary flex-1">
                 Batal
               </button>
               <button type="button" onClick={confirmWhatsApp} disabled={loading} className="btn-primary flex-1 disabled:opacity-50">
-                <MessageCircle size={18} /> {loading ? 'Memproses...' : 'Konfirmasi via WhatsApp'}
+                <MessageCircle size={18} /> {loading ? 'Memproses...' : form.payment === 'qris' ? 'Buat Pesanan' : 'Konfirmasi via WhatsApp'}
               </button>
             </div>
           </div>
@@ -467,6 +484,8 @@ export default function Checkout({ onNavigate }: Props) {
               ))}
             </div>
 
+            {form.payment === 'qris' && <QrisInstructions amount={total} />}
+
             <div className="mt-6">
               <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">Catatan (opsional)</label>
               <textarea
@@ -496,7 +515,7 @@ export default function Checkout({ onNavigate }: Props) {
             disabled={loading}
             className="btn-primary mt-6 w-full disabled:opacity-50"
           >
-            {loading ? 'Memproses...' : `Bayar ${formatIDR(total)}`}
+            {loading ? 'Memproses...' : `Buat Pesanan ${formatIDR(total)}`}
           </button>
         </form>
 
