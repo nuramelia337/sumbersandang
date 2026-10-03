@@ -8,7 +8,6 @@ import { useAlert } from '../../components/AlertProvider';
 import type { BusinessPackage, Category, Product, ProductAvailabilityStatus } from '../../lib/types';
 import {
   AVAILABILITY_LABELS,
-  computePackageCogs,
   itemStatusColor,
   loadPackages,
   logActivity,
@@ -271,7 +270,7 @@ export default function AdminPackages() {
                   </div>
                   <h2 className="mt-2 font-serif text-lg font-bold text-neutral-900 dark:text-neutral-50">{pkg.name}</h2>
                   <p className="text-sm font-semibold text-primary-600">{formatIDR(pkg.price)}</p>
-                  <p className="text-xs text-neutral-500">{pkg.business_package_items?.length || 0} produk · HPP {formatIDR(computePackageCogs(pkg))}</p>
+                  <p className="text-xs text-neutral-500">{pkg.business_package_items?.length || 0} produk</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button onClick={() => openEdit(pkg)} className="btn-secondary px-4 py-2"><Edit size={15} /> Edit</button>
                     {pkg.availability_status !== 'sold' && <button onClick={() => markSold(pkg)} className="btn-secondary px-4 py-2 text-success-700"><CheckCircle size={15} /> Tandai Sold</button>}

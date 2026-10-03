@@ -31,7 +31,6 @@ const emptyForm = {
   material: '',
   condition: 'Good',
   description: '',
-  purchase_price: 0,
   selling_price: 0,
   stock: 1,
   min_stock: 1,
@@ -227,7 +226,6 @@ export default function AdminProducts() {
       material: form.material || null,
       condition: form.condition,
       description: form.description || null,
-      purchase_price: Number(form.purchase_price),
       selling_price: Number(form.selling_price),
       stock: normalizedStock,
       min_stock: 1,
@@ -569,10 +567,6 @@ export default function AdminProducts() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Harga Beli</label>
-                  <CurrencyInput value={form.purchase_price} onValueChange={(value) => setForm({ ...form, purchase_price: value })} />
-                </div>
-                <div>
                   <label className="mb-1 block text-sm font-medium">Harga Jual</label>
                   <CurrencyInput required value={form.selling_price} onValueChange={(value) => setForm({ ...form, selling_price: value })} />
                 </div>
@@ -583,6 +577,8 @@ export default function AdminProducts() {
                   </div>
                 </div>
               </div>
+
+              <p className="text-sm text-neutral-600 dark:text-neutral-300">Modal pembelian satu bal dicatat sekali sebagai Kas Keluar di menu Keuangan. Produk ini cukup diberi harga jual.</p>
 
               <div>
                 <label className="mb-1 block text-sm font-medium">Deskripsi</label>

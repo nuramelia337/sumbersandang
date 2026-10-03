@@ -16,9 +16,6 @@ export default function AdminDashboard() {
     lowStock: 0,
     totalCustomers: 0,
     avgOrderValue: 0,
-    totalCogs: 0,
-    grossProfit: 0,
-    inventoryValue: 0,
     totalSold: 0,
     totalRevenue: 0,
     totalStock: 0,
@@ -69,7 +66,7 @@ export default function AdminDashboard() {
         supabase.from('orders').select('*'),
         supabase.from('products').select('*'),
         supabase.from('customers').select('id'),
-        supabase.from('order_items').select('order_id, product_name, quantity, unit_price, purchase_price, item_type, created_at'),
+        supabase.from('order_items').select('order_id, product_name, quantity, unit_price, item_type, created_at'),
         loadFinanceSummary().catch(() => ({ totalBalance: 0 })),
       ]);
 
@@ -90,10 +87,6 @@ export default function AdminDashboard() {
       const shopeepayRevenue = validOrders.filter((o) => o.payment_method === 'shopeepay').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const cashRevenue = validOrders.filter((o) => o.payment_method === 'cash').reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const qrisRevenue = validOrders.filter((o) => o.payment_method === 'qris').reduce((s, o) => s + Number(o.total_amount || 0), 0);
-
-      const totalCogs = validItems.reduce((s, i) => s + Number(i.purchase_price || 0) * Number(i.quantity || 0), 0);
-      const grossProfit = validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) - totalCogs;
-      const inventoryValue = allProducts.reduce((s, p) => s + p.purchase_price * p.stock, 0);
 
       const productSales: Record<string, number> = {};
       allItems.forEach((i) => {
@@ -133,9 +126,6 @@ export default function AdminDashboard() {
         lowStock: reservedProducts.length,
         totalCustomers: customers.data?.length || 0,
         avgOrderValue: validOrders.length > 0 ? validOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0) / validOrders.length : 0,
-        totalCogs,
-        grossProfit,
-        inventoryValue,
         totalSold,
         totalRevenue,
         totalStock,
@@ -177,8 +167,6 @@ export default function AdminDashboard() {
     { label: 'Pesanan Pending', value: stats.pendingOrders.toString(), icon: Clock, color: 'bg-warning-500' },
     { label: 'Total Produk', value: stats.totalProducts.toString(), icon: Package, color: 'bg-neutral-700' },
     { label: 'Total Customer', value: stats.totalCustomers.toString(), icon: Users, color: 'bg-accent-600' },
-    { label: 'Laba Kotor', value: formatIDR(stats.grossProfit), icon: TrendingUp, color: 'bg-success-600' },
-    { label: 'Nilai Inventory', value: formatIDR(stats.inventoryValue), icon: Package, color: 'bg-primary-700' },
     { label: 'Avg Order Value', value: formatIDR(stats.avgOrderValue), icon: DollarSign, color: 'bg-secondary-600' },
     { label: 'Produk Reserved', value: stats.lowStock.toString(), icon: AlertTriangle, color: 'bg-warning-500' },
   ];

@@ -224,9 +224,7 @@ export default function AdminFinance() {
       { Metrik: 'Kas Masuk', Nilai: summary.cashIn },
       { Metrik: 'Kas Keluar', Nilai: summary.cashOut },
       { Metrik: 'Saldo Akhir', Nilai: summary.closingBalance },
-      { Metrik: 'Laba Kotor Penjualan', Nilai: summary.grossSalesProfit },
-      { Metrik: 'Pengeluaran Operasional', Nilai: summary.operationalExpenses },
-      { Metrik: 'Laba Bersih Operasional', Nilai: summary.netOperatingProfit },
+      { Metrik: 'Perubahan Kas Periode', Nilai: summary.cashIn - summary.cashOut },
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Ringkasan');
@@ -239,16 +237,14 @@ export default function AdminFinance() {
     { label: 'Kas Masuk', value: summary.cashIn, icon: ArrowDownCircle, color: 'bg-success-600' },
     { label: 'Kas Keluar', value: summary.cashOut, icon: ArrowUpCircle, color: 'bg-error-600' },
     { label: 'Saldo Akhir', value: summary.closingBalance, icon: Wallet, color: 'bg-accent-600' },
-    { label: 'Laba Kotor Penjualan', value: summary.grossSalesProfit, icon: ArrowDownCircle, color: 'bg-success-500' },
-    { label: 'Pengeluaran Operasional', value: summary.operationalExpenses, icon: ArrowUpCircle, color: 'bg-warning-500' },
-    { label: 'Laba Bersih Operasional', value: summary.netOperatingProfit, icon: Wallet, color: 'bg-secondary-700' },
+    { label: 'Perubahan Kas Periode', value: summary.cashIn - summary.cashOut, icon: Wallet, color: 'bg-secondary-700' },
   ];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-serif text-2xl font-bold text-neutral-900 dark:text-neutral-50">Keuangan</h1>
-        <p className="text-sm text-neutral-500">Pencatatan kas harian dan laporan saldo</p>
+        <p className="text-sm text-neutral-500">Pencatatan kas harian dan saldo. Pembelian satu bal dicatat sekali sebagai Kas Keluar.</p>
       </div>
 
       {loadError ? (
@@ -297,7 +293,7 @@ export default function AdminFinance() {
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="font-serif text-lg font-bold">{editing ? 'Edit Transaksi Manual' : 'Tambah Transaksi Kas'}</h2>
-              {editing && <p className="mt-1 text-sm text-neutral-500">Perubahan akan langsung menghitung ulang saldo.</p>}
+              {editing ? <p className="mt-1 text-sm text-neutral-500">Perubahan akan langsung menghitung ulang saldo.</p> : <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Untuk modal satu bal, pilih Kas Keluar, isi jumlah total pembelian, lalu beri keterangan balnya.</p>}
             </div>
             {editing && (
               <button type="button" onClick={resetForm} disabled={savingTransaction} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Batalkan edit">

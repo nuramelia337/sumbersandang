@@ -87,7 +87,7 @@ export const MAX_OPTIMIZED_IMAGE_UPLOAD_BYTES = 900 * 1024;
 export const TARGET_THUMBNAIL_UPLOAD_BYTES = 60 * 1024;
 export const MAX_IMAGE_PIXELS = 25_000_000;
 export const MAX_PRODUCT_IMAGES = 6;
-const PACKAGE_PRODUCT_SELECT = 'id,product_code,name,purchase_price,status,availability_status,stock';
+const PACKAGE_PRODUCT_SELECT = 'id,product_code,name,status,availability_status,stock';
 
 export const DEFAULT_PROMO_BANNER: PromoBannerSetting = {
   title: 'Paket usaha thrift siap jual',
@@ -559,10 +559,6 @@ export function downloadJson(filename: string, data: unknown) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-export function computePackageCogs(pkg: BusinessPackage): number {
-  return (pkg.business_package_items || []).reduce((sum, item) => sum + Number(item.product?.purchase_price || 0), 0);
 }
 
 export function productIsAvailable(product: Product): boolean {
